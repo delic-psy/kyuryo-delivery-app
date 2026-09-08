@@ -1,0 +1,10 @@
+{
+  "name": "給料・出前集計",
+  "short_name": "給料・出前",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f6f7fb",
+  "theme_color": "#333333",
+  "lang": "ja",
+  "icons": []
+}
