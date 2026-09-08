@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>給料・出前 集計アプリ</title>
+<style>
+*{box-sizing:border-box}
+body{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Noto Sans JP",sans-serif;margin:0;background:#f6f7fb;color:#222}
+header{background:#fff;padding:16px;border-bottom:1px solid #ddd;position:sticky;top:0;z-index:5}
+h1{font-size:20px;margin:0 0 10px} h2{font-size:18px;margin:18px 0 10px} h3{font-size:16px;margin:14px 0 8px}
+main{max-width:1000px;margin:auto;padding:12px}
+nav{display:flex;gap:8px;flex-wrap:wrap}
+button,.btn,select,input{font:inherit}
+button,.btn{border:0;border-radius:10px;padding:9px 12px;background:#333;color:#fff;cursor:pointer}
+button.secondary{background:#777} button.danger{background:#a33} button.add{background:#26734d}
+button.active{background:#1769aa}
+.card{background:#fff;border:1px solid #ddd;border-radius:14px;padding:14px;margin:12px 0;box-shadow:0 1px 3px #0000000a}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+label{font-size:13px;color:#555;display:block;margin-bottom:4px}
+input,select{border:1px solid #bbb;border-radius:8px;padding:8px;background:#fff;min-height:40px}
+input[type=number]{width:120px}.money{width:130px}
+table{width:100%;border-collapse:collapse;margin-top:8px}
+th,td{border:1px solid #ddd;padding:7px;text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{background:#f0f2f6}
+.total{font-weight:700;font-size:18px;text-align:right;margin-top:10px}
+.muted{color:#777;font-size:13px}
+.daybox{border:1px solid #ddd;border-radius:12px;padding:10px;margin:10px 0;background:#fff}
+.daytitle{display:flex;justify-content:space-between;align-items:center;font-weight:700}
+.delivery-grid{display:grid;grid-template-columns:minmax(150px,1.5fr) minmax(100px,1fr) 80px 44px;gap:6px;align-items:center;margin-top:8px}
+.delivery-grid.header{font-size:12px;color:#666}
+.delivery-grid .shop{width:100%}
+.small{font-size:12px}
+hr{border:0;border-top:1px solid #ddd;margin:16px 0}
+#printArea{display:none}
+@media(max-width:650px){
+  .delivery-grid{grid-template-columns:1fr 110px 65px 42px}
+  .delivery-grid.header{display:none}
+  input[type=number]{width:100%}.money{width:100%}
+  th,td{padding:6px;font-size:13px}
+}
+@media print{
+  body{background:#fff}
+  body>*:not(#printArea){display:none!important}
+  #printArea{display:block}
+  table{font-size:11px}
+}
+</style>
+
+<meta name="theme-color" content="#333333">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="給料・出前集計">
+<link rel="manifest" href="manifest.json">
+
+<style>
+#pwaInstall{display:none;margin:10px 0;padding:12px;border-radius:12px;background:#eef6ff;border:1px solid #b9d8f5}
+#pwaInstall button{background:#1769aa}
+#installHelp{display:none;margin-top:8px;font-size:13px;color:#555;line-height:1.6}
+</style>
+</head>
+<body>
+<header>
+  <h1>📒 給料・出前 集計アプリ</h1>
+  <nav>
+    <button id="tabWage" class="active">👛 給料計算</button>
+    <button id="tabDelivery">🛵 出前集計</button>
+  </nav>
+</header>
+
+
+<div id="pwaInstall">
+  <div><strong>📱 ホーム画面に置けるよ♪</strong></div>
+  <div class="muted">Chromeなら「インストール」または「ホーム画面に追加」が出ることがあります。</div>
+  <button id="installBtn" style="margin-top:8px">ホーム画面に追加</button>
+  <button id="helpBtn" class="secondary" style="margin-top:8px">追加方法を見る</button>
+  <div id="installHelp">
+    <b>Chromeの場合：</b>右上の「︙」→「アプリをインストール」または「ホーム画面に追加」。<br>
+    ※HTMLファイルを端末内から直接開いた場合は、PWAのインストール機能が使えないことがあります。その場合は、このアプリをHTTPSのWebサイトとして公開して開く必要があります。
+  </div>
+</div>
+<main>
+<section id="wagePage">
+  <div class="card">
+    <h2>👤 人を選択</h2>
+    <div class="row">
+      <select id="personSelect"></select>
+      <button id="addPerson" class="add">＋ 人を追加</button>
+      <button id="renamePerson" class="secondary">名前変更</button>
+      <button id="deletePerson" class="danger">削除</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>💴 時給設定</h2>
+    <div class="row">
+      <div><label>平日① 18:00〜22:00</label><input id="rateWeek" type="number" min="0"></div>
+      <div><label>金土① 18:00〜22:00</label><input id="rateFS" type="number" min="0"></div>
+      <div><label>② 22:00〜翌3:00</label><input id="rateNight" type="number" min="0"></div>
+      <button id="saveRates">保存</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <div><label>月</label><input id="wageMonth" type="month"></div>
+      <button id="renderWage">表示</button>
+      <button id="printWage">🖨️ 給料を印刷</button>
+    </div>
+    <div id="wageDays"></div>
+    <div class="total">月間合計：<span id="wageMonthTotal">¥0</span></div>
+  </div>
+</section>
+
+<section id="deliveryPage" style="display:none">
+  <div class="card">
+    <h2>🛵 出前集計</h2>
+    <p class="muted">💡 店舗名は一度登録すれば、次から選ぶだけ♪ 同じ日に同じ店が何件あっても別々に入力できます。店舗別集計で自動合算します。</p>
+    <div class="row">
+      <div><label>月</label><input id="dMonth" type="month"></div>
+      <div><label>日</label><select id="dDay"></select></div>
+      <button id="addDelivery" class="add">＋ 注文を追加</button>
+      <button id="manageShops" class="secondary">🏪 店舗管理</button>
+      <button id="printDelivery">🖨️ 月間印刷</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>📝 この日の注文</h3>
+    <div class="delivery-grid header"><div>店舗・注文先</div><div>注文金額</div><div>件数</div><div></div></div>
+    <div id="deliveryRows"></div>
+    <div class="total">この日の合計：<span id="deliveryDayTotal">¥0</span></div>
+  </div>
+
+  <div class="card">
+    <h3>📅 日別合計</h3>
+    <table>
+      <thead><tr><th>日付</th><th>件数</th><th>売上合計</th></tr></thead>
+      <tbody id="dailyBody"></tbody>
+      <tfoot><tr><th>月間総合計</th><th id="monthlyCount">0件</th><th id="monthlyAmount">¥0</th></tr></tfoot>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>🏪 店舗別月間合計</h3>
+    <p class="muted">同じ店舗を何回入力しても、月内の全日分をまとめて集計するよ♪</p>
+    <table>
+      <thead><tr><th>店舗・注文先</th><th>この店は何件</th><th>この店の合計</th></tr></thead>
+      <tbody id="storeBody"></tbody>
+      <tfoot><tr><th>月間総合計</th><th id="storeCount">0件</th><th id="storeAmount">¥0</th></tr></tfoot>
+    </table>
+  </div>
+
+  <div id="shopManager" class="card" style="display:none">
+    <h3>🏪 店舗管理</h3>
+    <div class="row">
+      <input id="newShopName" placeholder="新しい店舗名">
+      <button id="saveShop" class="add">登録</button>
+    </div>
+    <div id="shopList" style="margin-top:10px"></div>
+  </div>
+</section>
+</main>
+
+<div id="printArea"></div>
+
+<script>
+const KEY="wage_delivery_app_final_v1";
+let db=loadDB(), currentPerson="";
+function loadDB(){
+  try{
+    const x=JSON.parse(localStorage.getItem(KEY)||"");
+    if(x&&x.people&&x.delivery&&x.shops) return x;
+  }catch(e){}
+  return {rates:{week:1200,fs:1300,night:1500},people:{},delivery:{},shops:[]};
+}
+function save(){localStorage.setItem(KEY,JSON.stringify(db))}
+function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
+function yen(n){return "¥"+Math.round(Number(n)||0).toLocaleString("ja-JP")}
+function daysInMonth(m){if(!m)return 31;const [y,mo]=m.split("-").map(Number);return new Date(y,mo,0).getDate()}
+function isFriSat(m,d){const [y,mo]=m.split("-").map(Number);const w=new Date(y,mo-1,d).getDay();return w===5||w===6}
+function pad(n){return String(n).padStart(2,"0")}
+function ensurePerson(){
+  if(!Object.keys(db.people).length){db.people["自分"]={}; currentPerson="自分"; save()}
+  if(!currentPerson||!db.people[currentPerson]) currentPerson=Object.keys(db.people)[0]
+}
+function init(){
+  ensurePerson();
+  const now=new Date(), month=now.getFullYear()+"-"+pad(now.getMonth()+1);
+  wageMonth.value=month; dMonth.value=month;
+  rateWeek.value=db.rates.week; rateFS.value=db.rates.fs; rateNight.value=db.rates.night;
+  renderPeople(); renderWage(); fillDays(); renderDelivery(); renderDeliverySummary(); renderShops();
+}
+function renderPeople(){
+  personSelect.innerHTML=Object.keys(db.people).map(n=>'<option>'+esc(n)+'</option>').join("");
+  personSelect.value=currentPerson;
+}
+function personData(){return db.people[currentPerson]||(db.people[currentPerson]={})}
+function getShift(p,d,s){return p[d+"_"+s]||{start:"",end:"",restart:"",reend:""}}
+function calcHours(x){
+  function mins(v){if(!v)return null;const [h,m]=v.split(":").map(Number);return h*60+m}
+  let a=mins(x.start),b=mins(x.end),c=mins(x.restart),d=mins(x.reend);
+  if(a==null||b==null)return 0;
+  if(b<a)b+=1440;
+  let total=b-a;
+  if(c!=null&&d!=null){if(d<c)d+=1440;total-=Math.max(0,d-c)}
+  return Math.max(0,total)/60;
+}
+function renderWage(){
+  const m=wageMonth.value;if(!m)return;
+  const p=personData(), n=daysInMonth(m);
+  let total=0, out="";
+  for(let d=1;d<=n;d++){
+    const a=getShift(p,m+"-"+pad(d),1), b=getShift(p,m+"-"+pad(d),2);
+    const ra=isFriSat(m,d)?db.rates.fs:db.rates.week, rb=db.rates.night;
+    const ha=calcHours(a), hb=calcHours(b), pa=ha*ra, pb=hb*rb;
+    total+=pa+pb;
+    out+=`<div class="daybox"><div class="daytitle"><span>${d}日 ${["日","月","火","水","木","金","土"][new Date(...m.split("-").map(Number).concat(d-1)).getDay()]}</span><span>${yen(pa+pb)}</span></div>`;
+    out+=shiftHTML(m,d,1,a,ra,ha,pa);
+    out+=shiftHTML(m,d,2,b,rb,hb,pb);
+    out+=`</div>`;
+  }
+  wageDays.innerHTML=out; wageMonthTotal.textContent=yen(total);
+  wageDays.querySelectorAll("input").forEach(inp=>inp.addEventListener("change",()=>{
+    const d=inp.dataset.d,s=inp.dataset.s,k=inp.dataset.k;
+    const x=getShift(personData(),d,s); x[k]=inp.value; personData()[d+"_"+s]=x; save(); renderWage();
+  }));
+}
+function shiftHTML(m,d,s,x,rate,h,pay){
+  return `<div class="row" style="margin-top:8px"><strong>時間${s===1?"① 18:00〜22:00":"② 22:00〜翌3:00"}</strong>
+  <input data-d="${m}-${pad(d)}" data-s="${s}" data-k="start" type="time" value="${x.start}">
+  <span>〜</span><input data-d="${m}-${pad(d)}" data-s="${s}" data-k="end" type="time" value="${x.end}">
+  <span class="small">休憩後</span><input data-d="${m}-${pad(d)}" data-s="${s}" data-k="restart" type="time" value="${x.restart}">
+  <span>〜</span><input data-d="${m}-${pad(d)}" data-s="${s}" data-k="reend" type="time" value="${x.reend}">
+  <span>${h.toFixed(2)}h × ${yen(rate)} = <b>${yen(pay)}</b></span></div>`;
+}
+function fillDays(){
+  const n=daysInMonth(dMonth.value), old=Number(dDay.value)||1;
+  dDay.innerHTML=Array.from({length:n},(_,i)=>`<option value="${i+1}">${i+1}日</option>`).join("");
+  dDay.value=String(Math.min(old,n));
+}
+function dayRows(){
+  const m=dMonth.value,d=String(Number(dDay.value)||1);
+  if(!db.delivery[m])db.delivery[m]={};
+  if(!db.delivery[m][d])db.delivery[m][d]=[];
+  return db.delivery[m][d];
+}
+function shopNames(){
+  const s=new Set(db.shops||[]);
+  Object.values(db.delivery).forEach(md=>Object.values(md||{}).forEach(rows=>(rows||[]).forEach(r=>{if(r.shop)s.add(r.shop)})));
+  return [...s].sort((a,b)=>a.localeCompare(b,"ja"));
+}
+function shopSelect(value,i){
+  const opts=shopNames().map(s=>`<option value="${esc(s)}" ${s===value?"selected":""}>${esc(s)}</option>`).join("");
+  return `<select class="shop" data-i="${i}"><option value="">店舗を選択</option>${opts}<option value="__new__">＋ 新しい店舗を登録</option></select>`;
+}
+function renderDelivery(){
+  const rows=dayRows();
+  deliveryRows.innerHTML=rows.map((r,i)=>`<div class="delivery-grid">
+    ${shopSelect(r.shop||"",i)}
+    <input class="money" data-i="${i}" data-k="amount" type="number" min="0" placeholder="注文金額" value="${Number(r.amount)||""}">
+    <input data-i="${i}" data-k="count" type="number" min="1" placeholder="件数" value="${Number(r.count)||1}">
+    <button class="danger" data-del="${i}">削除</button>
+  </div>`).join("") || '<div class="muted">まだ注文がありません。「＋注文を追加」から入力してね♪</div>';
+  deliveryRows.querySelectorAll(".shop").forEach(s=>s.addEventListener("change",e=>{
+    const i=Number(s.dataset.i);
+    if(s.value==="__new__"){
+      const name=prompt("新しい店舗名を入力してね♪");
+      if(name&&name.trim()){const v=name.trim(); if(!db.shops.includes(v))db.shops.push(v); rows[i].shop=v; save();}
+    }else rows[i].shop=s.value;
+    save(); renderDelivery(); renderDeliverySummary(); renderShops();
+  }));
+  deliveryRows.querySelectorAll("input").forEach(inp=>inp.addEventListener("input",()=>{
+    const i=Number(inp.dataset.i),k=inp.dataset.k; rows[i][k]=Number(inp.value)||0; save(); renderDeliverySummary();
+  }));
+  deliveryRows.querySelectorAll("[data-del]").forEach(b=>b.addEventListener("click",()=>{
+    rows.splice(Number(b.dataset.del),1); save(); renderDelivery(); renderDeliverySummary();
+  }));
+  deliveryDayTotal.textContent=yen(rows.reduce((a,r)=>a+(Number(r.amount)||0),0));
+}
+function renderDeliverySummary(){
+  const m=dMonth.value,n=daysInMonth(m),md=db.delivery[m]||{};
+  let mc=0,ma=0, stores={};
+  let daily="";
+  for(let d=1;d<=n;d++){
+    const rows=md[String(d)]||[];
+    const c=rows.reduce((a,r)=>a+(Number(r.count)||0),0);
+    const a=rows.reduce((a,r)=>a+(Number(r.amount)||0),0);
+    mc+=c;ma+=a;
+    daily+=`<tr><td>${d}日</td><td>${c}件</td><td>${yen(a)}</td></tr>`;
+    rows.forEach(r=>{
+      const s=String(r.shop||"").trim()||"未入力";
+      if(!stores[s])stores[s]={count:0,amount:0};
+      stores[s].count+=Number(r.count)||0;
+      stores[s].amount+=Number(r.amount)||0;
+    });
+  }
+  dailyBody.innerHTML=daily;
+  monthlyCount.textContent=mc+"件"; monthlyAmount.textContent=yen(ma);
+  const entries=Object.entries(stores).sort((a,b)=>b[1].amount-a[1].amount);
+  storeBody.innerHTML=entries.length?entries.map(([s,v])=>`<tr><td>${esc(s)}</td><td>${v.count}件</td><td>${yen(v.amount)}</td></tr>`).join(""):'<tr><td colspan="3">この月のデータはありません</td></tr>';
+  storeCount.textContent=mc+"件"; storeAmount.textContent=yen(ma);
+}
+function renderShops(){
+  const names=shopNames();
+  shopList.innerHTML=names.length?names.map((s,i)=>`<div class="row" style="margin:5px 0"><span style="flex:1">${esc(s)}</span><button class="danger small" data-shop-del="${i}">削除</button></div>`).join(""):"<span class='muted'>登録店舗なし</span>";
+  shopList.querySelectorAll("[data-shop-del]").forEach(b=>b.onclick=()=>{
+    const n=names[Number(b.dataset.shopDel)];
+    db.shops=(db.shops||[]).filter(s=>s!==n); save(); renderShops(); renderDelivery();
+  });
+}
+function printWageView(){
+  const m=wageMonth.value,p=personData(),n=daysInMonth(m);let total=0,rows="";
+  for(let d=1;d<=n;d++){const a=getShift(p,m+"-"+pad(d),1),b=getShift(p,m+"-"+pad(d),2),ra=isFriSat(m,d)?db.rates.fs:db.rates.week,rb=db.rates.night,ha=calcHours(a),hb=calcHours(b),pay=ha*ra+hb*rb;total+=pay;rows+=`<tr><td>${d}日</td><td>${ha.toFixed(2)}</td><td>${yen(ha*ra)}</td><td>${hb.toFixed(2)}</td><td>${yen(hb*rb)}</td><td>${yen(pay)}</td></tr>`}
+  printArea.innerHTML=`<h2>${esc(currentPerson)} ${m} 給料明細</h2><table><tr><th>日</th><th>①時間</th><th>①給料</th><th>②時間</th><th>②給料</th><th>日合計</th></tr>${rows}<tr><th colspan="5">月間合計</th><th>${yen(total)}</th></tr></table>`;
+  window.print();
+}
+function printDeliveryView(){
+  const m=dMonth.value,md=db.delivery[m]||{},n=daysInMonth(m);let daily="",stores={},mc=0,ma=0;
+  for(let d=1;d<=n;d++){const rows=md[String(d)]||[];let a=0,c=0;rows.forEach(r=>{a+=Number(r.amount)||0;c+=Number(r.count)||0;const s=String(r.shop||"").trim()||"未入力";if(!stores[s])stores[s]={count:0,amount:0};stores[s].count+=Number(r.count)||0;stores[s].amount+=Number(r.amount)||0});mc+=c;ma+=a;daily+=`<tr><td>${d}日</td><td>${c}件</td><td>${yen(a)}</td></tr>`}
+  const st=Object.entries(stores).sort((a,b)=>b[1].amount-a[1].amount).map(([s,v])=>`<tr><td>${esc(s)}</td><td>${v.count}件</td><td>${yen(v.amount)}</td></tr>`).join("");
+  printArea.innerHTML=`<h2>${m} 出前集計</h2><h3>日別合計</h3><table><tr><th>日</th><th>件数</th><th>売上</th></tr>${daily}<tr><th>月間総合計</th><th>${mc}件</th><th>${yen(ma)}</th></tr></table><h3>店舗別月間合計</h3><table><tr><th>店舗・注文先</th><th>この店は何件</th><th>この店の合計</th></tr>${st||'<tr><td colspan="3">データなし</td></tr>'}</table>`;
+  window.print();
+}
+tabWage.onclick=()=>{wagePage.style.display="";deliveryPage.style.display="none";tabWage.classList.add("active");tabDelivery.classList.remove("active")};
+tabDelivery.onclick=()=>{wagePage.style.display="none";deliveryPage.style.display="";tabWage.classList.remove("active");tabDelivery.classList.add("active");renderDeliverySummary()};
+personSelect.onchange=()=>{currentPerson=personSelect.value;renderWage()};
+addPerson.onclick=()=>{const n=prompt("名前を入力してね");if(n&&n.trim()&&!db.people[n.trim()]){db.people[n.trim()]={};currentPerson=n.trim();save();renderPeople();renderWage()}};
+renamePerson.onclick=()=>{const n=prompt("新しい名前",currentPerson);if(n&&n.trim()&&n.trim()!==currentPerson&&!db.people[n.trim()]){db.people[n.trim()]=db.people[currentPerson];delete db.people[currentPerson];currentPerson=n.trim();save();renderPeople()}};
+deletePerson.onclick=()=>{if(Object.keys(db.people).length<=1)return alert("最後の1人は削除できません");if(confirm(currentPerson+"を削除する？")){delete db.people[currentPerson];currentPerson=Object.keys(db.people)[0];save();renderPeople();renderWage()}};
+saveRates.onclick=()=>{db.rates={week:Number(rateWeek.value)||0,fs:Number(rateFS.value)||0,night:Number(rateNight.value)||0};save();renderWage()};
+renderWage.onclick=renderWage;
+wageMonth.onchange=renderWage;
+dMonth.onchange=()=>{fillDays();renderDelivery();renderDeliverySummary()};
+dDay.onchange=renderDelivery;
+addDelivery.onclick=()=>{dayRows().push({shop:"",amount:0,count:1});save();renderDelivery()};
+manageShops.onclick=()=>{shopManager.style.display=shopManager.style.display==="none"?"":"none";renderShops()};
+saveShop.onclick=()=>{const n=newShopName.value.trim();if(n&&!db.shops.includes(n)){db.shops.push(n);newShopName.value="";save();renderShops();renderDelivery()}};
+printWage.onclick=printWageView; printDelivery.onclick=printDeliveryView;
+init();
+</script>
+
+<script>
+(function(){
+  let deferredPrompt=null;
+  const box=document.getElementById("pwaInstall");
+  const btn=document.getElementById("installBtn");
+  const help=document.getElementById("installHelp");
+  const hb=document.getElementById("helpBtn");
+  window.addEventListener("beforeinstallprompt",e=>{
+    e.preventDefault(); deferredPrompt=e; box.style.display="block";
+  });
+  btn.addEventListener("click",async()=>{
+    if(!deferredPrompt){help.style.display=help.style.display==="none"?"block":"none";return;}
+    deferredPrompt.prompt();
+    try{await deferredPrompt.userChoice;}catch(e){}
+    deferredPrompt=null;
+    box.style.display="none";
+  });
+  hb.addEventListener("click",()=>{help.style.display=help.style.display==="none"?"block":"none"});
+  window.addEventListener("appinstalled",()=>{box.style.display="none"});
+  if("serviceWorker" in navigator && location.protocol!=="file:"){
+    navigator.serviceWorker.register("sw.js").catch(()=>{});
+  }
+})();
+</script>
+</body></html>
