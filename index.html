@@ -217,7 +217,7 @@ function renderWage(){
     const ra=isFriSat(m,d)?db.rates.fs:db.rates.week, rb=db.rates.night;
     const ha=calcHours(a), hb=calcHours(b), pa=ha*ra, pb=hb*rb;
     total+=pa+pb;
-    out+=`<div class="daybox"><div class="daytitle"><span>${d}日 ${["日","月","火","水","木","金","土"][new Date(...m.split("-").map(Number).concat(d-1)).getDay()]}</span><span>${yen(pa+pb)}</span></div>`;
+    out+=`<div class="daybox"><div class="daytitle"><span>${d}日 ${["日","月","火","水","木","金","土"][new Date(...m.split("-").map(Number).map((v,i)=>i===1?v-1:v),d).getDay()]}</span><span>${yen(pa+pb)}</span></div>`;
     out+=shiftHTML(m,d,1,a,ra,ha,pa);
     out+=shiftHTML(m,d,2,b,rb,hb,pb);
     out+=`</div>`;
