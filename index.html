@@ -313,9 +313,42 @@ function renderShops(){
   });
 }
 function printWageView(){
-  const m=wageMonth.value,p=personData(),n=daysInMonth(m);let total=0,rows="";
-  for(let d=1;d<=n;d++){const a=getShift(p,m+"-"+pad(d),1),b=getShift(p,m+"-"+pad(d),2),ra=isFriSat(m,d)?db.rates.fs:db.rates.week,rb=db.rates.night,ha=calcHours(a),hb=calcHours(b),pay=ha*ra+hb*rb;total+=pay;rows+=`<tr><td>${d}日</td><td>${ha.toFixed(2)}</td><td>${yen(ha*ra)}</td><td>${hb.toFixed(2)}</td><td>${yen(hb*rb)}</td><td>${yen(pay)}</td></tr>`}
-  printArea.innerHTML=`<h2>${esc(currentPerson)} ${m} 給料明細</h2><table><tr><th>日</th><th>①時間</th><th>①給料</th><th>②時間</th><th>②給料</th><th>日合計</th></tr>${rows}<tr><th colspan="5">月間合計</th><th>${yen(total)}</th></tr></table>`;
+  const m=wageMonth.value,p=personData(),n=daysInMonth(m);
+  let total=0,rows="";
+  const weeks=["日","月","火","水","木","金","土"];
+
+  for(let d=1;d<=n;d++){
+    const a=getShift(p,m+"-"+pad(d),1),b=getShift(p,m+"-"+pad(d),2);
+    const ra=isFriSat(m,d)?db.rates.fs:db.rates.week;
+    const rb=db.rates.night;
+    const ha=calcHours(a),hb=calcHours(b);
+    const pa=ha*ra,pb=hb*rb,pay=pa+pb;
+    total+=pay;
+
+    const w=weeks[new Date(...m.split("-").map(Number).map((v,i)=>i===1?v-1:v),d).getDay()];
+
+    rows+=`<tr>
+      <td>${d}日</td>
+      <td>${w}</td>
+      <td>${ha.toFixed(2)}h</td>
+      <td>${yen(ra)}</td>
+      <td>${yen(pa)}</td>
+      <td>${hb.toFixed(2)}h</td>
+      <td>${yen(rb)}</td>
+      <td>${yen(pb)}</td>
+      <td>${yen(pay)}</td>
+    </tr>`;
+  }
+
+  printArea.innerHTML=`<h2>${esc(currentPerson)} ${m} 給料明細</h2>
+  <table>
+    <tr>
+      <th>日</th><th>曜日</th><th>①時間</th><th>①時給</th><th>①給料</th>
+      <th>②時間</th><th>②時給</th><th>②給料</th><th>日合計</th>
+    </tr>
+    ${rows}
+    <tr><th colspan="8">月間合計</th><th>${yen(total)}</th></tr>
+  </table>`;
   window.print();
 }
 function printDeliveryView(){
