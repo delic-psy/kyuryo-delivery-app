@@ -206,7 +206,8 @@ function calcHours(x){
   if(b<a)b+=1440;
   let total=b-a;
   if(c!=null&&d!=null){if(d<c)d+=1440;total-=Math.max(0,d-c)}
-  return Math.max(0,total)/60;
+  total=Math.max(0,total);
+  return Math.floor(total/15)*15/60;
 }
 function renderWage(){
   const m=wageMonth.value;if(!m)return;
