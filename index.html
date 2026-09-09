@@ -49,7 +49,6 @@ hr{border:0;border-top:1px solid #ddd;margin:16px 0}
   #printArea .rate{font-weight:700}
   #printArea .rate[style*="background"]{background:#fff3a3!important}
 }
-
 </style>
 
 <meta name="theme-color" content="#333333">
@@ -107,6 +106,15 @@ hr{border:0;border-top:1px solid #ddd;margin:16px 0}
     </div>
   </div>
 
+  <div class="card">
+    <h2>💾 データ管理</h2>
+    <div class="row">
+      <button id="backupData">💾 バックアップ</button>
+      <button id="restoreData" class="secondary">↩ 復元</button>
+      <input id="restoreFile" type="file" accept=".json,application/json" hidden>
+    </div>
+    <p class="muted">スマホ変更・機種変更・ブラウザのデータ削除に備えて、たまにバックアップしておくと安心だよ♪</p>
+  </div>
   <div class="card">
     <div class="row">
       <div><label>月</label><input id="wageMonth" type="month"></div>
@@ -186,61 +194,17 @@ function yen(n){return "¥"+Math.round(Number(n)||0).toLocaleString("ja-JP")}
 function daysInMonth(m){if(!m)return 31;const [y,mo]=m.split("-").map(Number);return new Date(y,mo,0).getDate()}
 function japanHolidays(y){
   const h=new Set();
-
   const add=(m,d)=>h.add(`${y}-${pad(m)}-${pad(d)}`);
-
-  // 固定祝日
-  add(1,1);    // 元日
-  add(2,11);   // 建国記念の日
-  add(2,23);   // 天皇誕生日
-  add(4,29);   // 昭和の日
-  add(5,3);    // 憲法記念日
-  add(5,4);    // みどりの日
-  add(5,5);    // こどもの日
-  add(8,11);   // 山の日
-  add(11,3);   // 文化の日
-  add(11,23);  // 勤労感謝の日
-
-  // 第○月曜日
-  const nthMonday=(month,n)=>{
-    const first=new Date(y,month-1,1);
-    const day=first.getDay();
-    return 1+((8-day)%7)+(n-1)*7;
-  };
-
-  add(1,nthMonday(1,2));   // 成人の日
-  add(7,nthMonday(7,3));   // 海の日
-  add(9,nthMonday(9,3));   // 敬老の日
-  add(10,nthMonday(10,2)); // スポーツの日
-
-  // 春分・秋分
+  add(1,1); add(2,11); add(2,23); add(4,29); add(5,3); add(5,4); add(5,5); add(8,11); add(11,3); add(11,23);
+  const nthMonday=(month,n)=>{const first=new Date(y,month-1,1);const day=first.getDay();return 1+((8-day)%7)+(n-1)*7};
+  add(1,nthMonday(1,2)); add(7,nthMonday(7,3)); add(9,nthMonday(9,3)); add(10,nthMonday(10,2));
   const vernal=Math.floor(20.8431+0.242194*(y-1980)-Math.floor((y-1980)/4));
   const autumn=Math.floor(23.2488+0.242194*(y-1980)-Math.floor((y-1980)/4));
-  add(3,vernal);
-  add(9,autumn);
-
-  // 日曜日に重なった祝日の振替休日
-  for(const s of [...h]){
-    const [yy,mm,dd]=s.split("-").map(Number);
-    const date=new Date(yy,mm-1,dd);
-    if(date.getDay()===0){
-      let next=dd+1;
-      while(h.has(`${yy}-${pad(mm)}-${pad(next)}`)){
-        next++;
-      }
-      h.add(`${yy}-${pad(mm)}-${pad(next)}`);
-    }
-  }
-
+  add(3,vernal); add(9,autumn);
+  for(const z of [...h]){const [yy,mm,dd]=z.split("-").map(Number);const date=new Date(yy,mm-1,dd);if(date.getDay()===0){let next=dd+1;while(h.has(`${yy}-${pad(mm)}-${pad(next)}`))next++;h.add(`${yy}-${pad(mm)}-${pad(next)}`)}}
   return h;
 }
-
-function isFriSat(m,d){
-  const [y,mo]=m.split("-").map(Number);
-  const w=new Date(y,mo-1,d).getDay();
-  const holiday=japanHolidays(y).has(`${y}-${pad(mo)}-${pad(d)}`);
-  return w===5||w===6||holiday;
-}
+function isFriSat(m,d){const [y,mo]=m.split("-").map(Number);const w=new Date(y,mo-1,d).getDay();const holiday=japanHolidays(y).has(`${y}-${pad(mo)}-${pad(d)}`);return w===5||w===6||holiday}
 function pad(n){return String(n).padStart(2,"0")}
 function ensurePerson(){
   if(!Object.keys(db.people).length){db.people["自分"]={}; currentPerson="自分"; save()}
@@ -372,120 +336,63 @@ function renderShops(){
     db.shops=(db.shops||[]).filter(s=>s!==n); save(); renderShops(); renderDelivery();
   });
 }
+function backupData(){
+  const payload={app:"wage_delivery_app",version:1,savedAt:new Date().toISOString(),data:db};
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url; a.download="給料出前バックアップ_"+new Date().toISOString().slice(0,10)+".json";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+function restoreData(file){
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=()=>{
+    try{
+      const payload=JSON.parse(reader.result);
+      const data=payload&&payload.data?payload.data:payload;
+      if(!data||!data.people||!data.delivery||!data.shops||!data.rates)throw new Error("invalid");
+      if(!confirm("バックアップのデータで現在のデータを上書きするよ。よければOKを押してね。"))return;
+      db=data; save();
+      location.reload();
+    }catch(e){alert("バックアップファイルを読み込めませんでした。\nこのアプリで作ったJSONを選んでね。")}
+  };
+  reader.readAsText(file);
+}
 function printWageView(){
   const m=wageMonth.value,p=personData();
   let normalHours=0,normalPay=0;
   let specialHours=0,specialPay=0;
   let nightHours=0,nightPay=0;
-
   const n=daysInMonth(m);
-
   for(let d=1;d<=n;d++){
     const a=getShift(p,m+"-"+pad(d),1);
     const b=getShift(p,m+"-"+pad(d),2);
-
     const special=isFriSat(m,d);
     const ra=special?db.rates.fs:db.rates.week;
     const rb=db.rates.night;
-
     const ha=calcHours(a);
     const hb=calcHours(b);
-
-    if(special){
-      specialHours+=ha;
-      specialPay+=ha*ra;
-    }else{
-      normalHours+=ha;
-      normalPay+=ha*ra;
-    }
-
-    nightHours+=hb;
-    nightPay+=hb*rb;
+    if(special){specialHours+=ha;specialPay+=ha*ra}else{normalHours+=ha;normalPay+=ha*ra}
+    nightHours+=hb;nightPay+=hb*rb;
   }
-
   const totalHours=normalHours+specialHours+nightHours;
   const totalPay=normalPay+specialPay+nightPay;
-
   printArea.innerHTML=`
     <div style="max-width:700px;margin:0 auto;font-family:sans-serif;">
-      <h2 style="text-align:center;margin-bottom:20px;">
-        ${esc(currentPerson)}　${m} 給料明細
-      </h2>
-
+      <h2 style="text-align:center;margin-bottom:20px;">${esc(currentPerson)}　${m} 給料明細</h2>
       <table style="border-collapse:collapse;width:100%;font-size:14px;">
-        <tr style="background:#eee;">
-          <th style="border:1px solid #999;padding:10px;">区分</th>
-          <th style="border:1px solid #999;padding:10px;">時給</th>
-          <th style="border:1px solid #999;padding:10px;">時間</th>
-          <th style="border:1px solid #999;padding:10px;">金額</th>
-        </tr>
-
-        <tr>
-          <td style="border:1px solid #999;padding:10px;">平日①</td>
-          <td style="border:1px solid #999;padding:10px;text-align:right;">
-            <b>${yen(db.rates.week)}</b>
-          </td>
-          <td style="border:1px solid #999;padding:10px;text-align:right;">
-            ${normalHours.toFixed(2)}h
-          </td>
-          <td style="border:1px solid #999;padding:10px;text-align:right;">
-            ${yen(normalPay)}
-          </td>
-        </tr>
-
-        <tr>
-          <td style="border:1px solid #999;padding:10px;background:#fff3a3;">
-            <b>金・土・祝①</b>
-          </td>
-          <td style="border:1px solid #999;padding:10px;text-align:right;background:#fff3a3;">
-            <b>${yen(db.rates.fs)}</b>
-          </td>
-          <td style="border:1px solid #999;padding:10px;text-align:right;">
-            ${specialHours.toFixed(2)}h
-          </td>
-          <td style="border:1px solid #999;padding:10px;text-align:right;">
-            ${yen(specialPay)}
-          </td>
-        </tr>
-
-        <tr>
-          <td style="border:1px solid #999;padding:10px;">②</td>
-          <td style="border:1px solid #999;padding:10px;text-align:right;">
-            <b>${yen(db.rates.night)}</b>
-          </td>
-          <td style="border:1px solid #999;padding:10px;text-align:right;">
-            ${nightHours.toFixed(2)}h
-          </td>
-          <td style="border:1px solid #999;padding:10px;text-align:right;">
-            ${yen(nightPay)}
-          </td>
-        </tr>
-
-        <tr>
-                    <th colspan="2" style="border:1px solid #999;padding:12px;background:#eee;">
-            総合計
-          </th>
-          <th style="border:1px solid #999;padding:12px;background:#eee;">
-            ${totalHours.toFixed(2)}h
-          </th>
-          <th style="border:1px solid #999;padding:12px;background:#eee;font-size:17px;">
-            ${yen(totalPay)}
-          </th>
-        </tr>
+        <tr style="background:#eee;"><th style="border:1px solid #999;padding:10px;">区分</th><th style="border:1px solid #999;padding:10px;">時給</th><th style="border:1px solid #999;padding:10px;">時間</th><th style="border:1px solid #999;padding:10px;">金額</th></tr>
+        <tr><td style="border:1px solid #999;padding:10px;">平日①</td><td class="rate" style="border:1px solid #999;padding:10px;text-align:right;"><b>${yen(db.rates.week)}</b></td><td style="border:1px solid #999;padding:10px;text-align:right;">${normalHours.toFixed(2)}h</td><td style="border:1px solid #999;padding:10px;text-align:right;">${yen(normalPay)}</td></tr>
+        <tr><td style="border:1px solid #999;padding:10px;background:#fff3a3;"><b>金・土・祝①</b></td><td class="rate" style="border:1px solid #999;padding:10px;text-align:right;background:#fff3a3;"><b>${yen(db.rates.fs)}</b></td><td style="border:1px solid #999;padding:10px;text-align:right;">${specialHours.toFixed(2)}h</td><td style="border:1px solid #999;padding:10px;text-align:right;">${yen(specialPay)}</td></tr>
+        <tr><td style="border:1px solid #999;padding:10px;">②</td><td class="rate" style="border:1px solid #999;padding:10px;text-align:right;"><b>${yen(db.rates.night)}</b></td><td style="border:1px solid #999;padding:10px;text-align:right;">${nightHours.toFixed(2)}h</td><td style="border:1px solid #999;padding:10px;text-align:right;">${yen(nightPay)}</td></tr>
+        <tr><th colspan="2" style="border:1px solid #999;padding:12px;background:#eee;">総合計</th><th style="border:1px solid #999;padding:12px;background:#eee;">${totalHours.toFixed(2)}h</th><th style="border:1px solid #999;padding:12px;background:#eee;font-size:17px;">${yen(totalPay)}</th></tr>
       </table>
-
-      <p style="text-align:center;margin-top:15px;font-size:12px;">
-        平日① ${yen(db.rates.week)} ／
-        金・土・祝① ${yen(db.rates.fs)} ／
-        ② ${yen(db.rates.night)}
-      </p>
-    </div>
-  `;
-
+      <p style="text-align:center;margin-top:15px;font-size:12px;">平日① ${yen(db.rates.week)} ／ 金・土・祝① ${yen(db.rates.fs)} ／ ② ${yen(db.rates.night)}</p>
+    </div>`;
   window.print();
 }
-        
-
 function printDeliveryView(){
   const m=dMonth.value,md=db.delivery[m]||{},n=daysInMonth(m);let daily="",stores={},mc=0,ma=0;
   for(let d=1;d<=n;d++){const rows=md[String(d)]||[];let a=0,c=0;rows.forEach(r=>{a+=Number(r.amount)||0;c+=Number(r.count)||0;const s=String(r.shop||"").trim()||"未入力";if(!stores[s])stores[s]={count:0,amount:0};stores[s].count+=Number(r.count)||0;stores[s].amount+=Number(r.amount)||0});mc+=c;ma+=a;daily+=`<tr><td>${d}日</td><td>${c}件</td><td>${yen(a)}</td></tr>`}
@@ -508,6 +415,9 @@ addDelivery.onclick=()=>{dayRows().push({shop:"",amount:0,count:1});save();rende
 manageShops.onclick=()=>{shopManager.style.display=shopManager.style.display==="none"?"":"none";renderShops()};
 saveShop.onclick=()=>{const n=newShopName.value.trim();if(n&&!db.shops.includes(n)){db.shops.push(n);newShopName.value="";save();renderShops();renderDelivery()}};
 printWage.onclick=printWageView; printDelivery.onclick=printDeliveryView;
+backupData.onclick=backupData;
+restoreData.onclick=()=>restoreFile.click();
+restoreFile.onchange=()=>{const f=restoreFile.files&&restoreFile.files[0];restoreData(f);restoreFile.value=""};
 init();
 </script>
 
