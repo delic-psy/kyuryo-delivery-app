@@ -1,4 +1,4 @@
-const CACHE="wage-delivery-pwa-v4";
+const CACHE="wage-delivery-pwa-v5";
 const ASSETS=["./","./index.html","./manifest.json"];
 
 self.addEventListener("install",e=>{
