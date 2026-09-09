@@ -444,7 +444,7 @@ addDelivery.onclick=()=>{dayRows().push({shop:"",amount:0,count:1});save();rende
 manageShops.onclick=()=>{shopManager.style.display=shopManager.style.display==="none"?"":"none";renderShops()};
 saveShop.onclick=()=>{const n=newShopName.value.trim();if(n&&!db.shops.includes(n)){db.shops.push(n);newShopName.value="";save();renderShops();renderDelivery()}};
 printWage.onclick=printWageView; printDelivery.onclick=printDeliveryView;
-document.getElementById("backupData").onclick=backupData;
+document.getElementById("backupData").onclick=()=>alert("バックアップボタンは動いてるよ！");
 restoreData.onclick=()=>restoreFile.click();
 restoreFile.onchange=()=>{const f=restoreFile.files&&restoreFile.files[0];restoreData(f);restoreFile.value=""};
 init();
