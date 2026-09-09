@@ -416,7 +416,7 @@ function printWageView(){
 
   window.print();
 }
-}
+
 function printDeliveryView(){
   const m=dMonth.value,md=db.delivery[m]||{},n=daysInMonth(m);let daily="",stores={},mc=0,ma=0;
   for(let d=1;d<=n;d++){const rows=md[String(d)]||[];let a=0,c=0;rows.forEach(r=>{a+=Number(r.amount)||0;c+=Number(r.count)||0;const s=String(r.shop||"").trim()||"未入力";if(!stores[s])stores[s]={count:0,amount:0};stores[s].count+=Number(r.count)||0;stores[s].amount+=Number(r.amount)||0});mc+=c;ma+=a;daily+=`<tr><td>${d}日</td><td>${c}件</td><td>${yen(a)}</td></tr>`}
