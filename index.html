@@ -180,7 +180,63 @@ function save(){localStorage.setItem(KEY,JSON.stringify(db))}
 function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
 function yen(n){return "¥"+Math.round(Number(n)||0).toLocaleString("ja-JP")}
 function daysInMonth(m){if(!m)return 31;const [y,mo]=m.split("-").map(Number);return new Date(y,mo,0).getDate()}
-function isFriSat(m,d){const [y,mo]=m.split("-").map(Number);const w=new Date(y,mo-1,d).getDay();return w===5||w===6}
+function japanHolidays(y){
+  const h=new Set();
+
+  const add=(m,d)=>h.add(`${y}-${pad(m)}-${pad(d)}`);
+
+  // 固定祝日
+  add(1,1);    // 元日
+  add(2,11);   // 建国記念の日
+  add(2,23);   // 天皇誕生日
+  add(4,29);   // 昭和の日
+  add(5,3);    // 憲法記念日
+  add(5,4);    // みどりの日
+  add(5,5);    // こどもの日
+  add(8,11);   // 山の日
+  add(11,3);   // 文化の日
+  add(11,23);  // 勤労感謝の日
+
+  // 第○月曜日
+  const nthMonday=(month,n)=>{
+    const first=new Date(y,month-1,1);
+    const day=first.getDay();
+    return 1+((8-day)%7)+(n-1)*7;
+  };
+
+  add(1,nthMonday(1,2));   // 成人の日
+  add(7,nthMonday(7,3));   // 海の日
+  add(9,nthMonday(9,3));   // 敬老の日
+  add(10,nthMonday(10,2)); // スポーツの日
+
+  // 春分・秋分
+  const vernal=Math.floor(20.8431+0.242194*(y-1980)-Math.floor((y-1980)/4));
+  const autumn=Math.floor(23.2488+0.242194*(y-1980)-Math.floor((y-1980)/4));
+  add(3,vernal);
+  add(9,autumn);
+
+  // 日曜日に重なった祝日の振替休日
+  for(const s of [...h]){
+    const [yy,mm,dd]=s.split("-").map(Number);
+    const date=new Date(yy,mm-1,dd);
+    if(date.getDay()===0){
+      let next=dd+1;
+      while(h.has(`${yy}-${pad(mm)}-${pad(next)}`)){
+        next++;
+      }
+      h.add(`${yy}-${pad(mm)}-${pad(next)}`);
+    }
+  }
+
+  return h;
+}
+
+function isFriSat(m,d){
+  const [y,mo]=m.split("-").map(Number);
+  const w=new Date(y,mo-1,d).getDay();
+  const holiday=japanHolidays(y).has(`${y}-${pad(mo)}-${pad(d)}`);
+  return w===5||w===6||holiday;
+}
 function pad(n){return String(n).padStart(2,"0")}
 function ensurePerson(){
   if(!Object.keys(db.people).length){db.people["自分"]={}; currentPerson="自分"; save()}
@@ -326,30 +382,40 @@ function printWageView(){
     total+=pay;
 
     const w=weeks[new Date(...m.split("-").map(Number).map((v,i)=>i===1?v-1:v),d).getDay()];
+    const special=isFriSat(m,d);
+    const dayClass=special?' class="special"':"";
 
-    rows+=`<tr>
+
+    rows+=`<tr${dayClass}>
       <td>${d}日</td>
-      <td>${w}</td>
+      <td><b>${w}</b></td>
       <td>${ha.toFixed(2)}h</td>
-      <td>${yen(ra)}</td>
+      <td class="rate" style="${special?'background:#fff3a3;':''}"><b>${yen(ra)}</b></td>
       <td>${yen(pa)}</td>
       <td>${hb.toFixed(2)}h</td>
-      <td>${yen(rb)}</td>
+      <td class="rate"><b>${yen(rb)}</b></td>
       <td>${yen(pb)}</td>
-      <td>${yen(pay)}</td>
+      <td><b>${yen(pay)}</b></td>
     </tr>`;
   }
 
   printArea.innerHTML=`<h2>${esc(currentPerson)} ${m} 給料明細</h2>
-  <table>
-    <tr>
+  <table style="border-collapse:collapse;width:100%;">
+    <tr style="background:#eee;">
       <th>日</th><th>曜日</th><th>①時間</th><th>①時給</th><th>①給料</th>
       <th>②時間</th><th>②時給</th><th>②給料</th><th>日合計</th>
     </tr>
     ${rows}
     <tr><th colspan="8">月間合計</th><th>${yen(total)}</th></tr>
-  </table>`;
+  </table>
+  <p style="margin-top:10px">
+    <b>①平日：${yen(db.rates.week)}</b>　
+    <b>①金・土・祝日：${yen(db.rates.fs)}</b>　
+    <b>②：${yen(db.rates.night)}</b>
+  </p>`;
+
   window.print();
+}
 }
 function printDeliveryView(){
   const m=dMonth.value,md=db.delivery[m]||{},n=daysInMonth(m);let daily="",stores={},mc=0,ma=0;
