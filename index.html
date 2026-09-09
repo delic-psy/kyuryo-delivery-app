@@ -345,20 +345,49 @@ function backupData(){
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
-function restoreData(file){
-  if(!file)return;
-  const reader=new FileReader();
-  reader.onload=()=>{
-    try{
-      const payload=JSON.parse(reader.result);
-      const data=payload&&payload.data?payload.data:payload;
-      if(!data||!data.people||!data.delivery||!data.shops||!data.rates)throw new Error("invalid");
-      if(!confirm("バックアップのデータで現在のデータを上書きするよ。よければOKを押してね。"))return;
-      db=data; save();
-      location.reload();
-    }catch(e){alert("バックアップファイルを読み込めませんでした。\nこのアプリで作ったJSONを選んでね。")}
+async function backupData(){
+  const payload={
+    app:"wage_delivery_app",
+    version:1,
+    savedAt:new Date().toISOString(),
+    data:db
   };
-  reader.readAsText(file);
+
+  const text=JSON.stringify(payload,null,2);
+  const filename="wage_delivery_backup_"+new Date().toISOString().slice(0,10)+".json";
+
+  try{
+    const file=new File([text],filename,{type:"application/json"});
+
+    if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+      await navigator.share({
+        title:"給料・出前バックアップ",
+        text:"アプリのデータバックアップ",
+        files:[file]
+      });
+      return;
+    }
+  }catch(e){
+    if(e && e.name==="AbortError") return;
+  }
+
+  try{
+    const blob=new Blob([text],{type:"application/json"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;
+    a.download=filename;
+    a.style.display="none";
+    document.body.appendChild(a);
+    a.click();
+
+    setTimeout(()=>{
+      a.remove();
+      URL.revokeObjectURL(url);
+    },1500);
+  }catch(e){
+    alert("バックアップを保存できませんでした。Chromeで開いてもう一度試してね。");
+  }
 }
 function printWageView(){
   const m=wageMonth.value,p=personData();
