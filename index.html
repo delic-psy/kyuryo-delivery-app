@@ -338,15 +338,6 @@ function renderShops(){
   });
 }
 function backupData(){
-  const payload={app:"wage_delivery_app",version:1,savedAt:new Date().toISOString(),data:db};
-  const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement("a");
-  a.href=url; a.download="給料出前バックアップ_"+new Date().toISOString().slice(0,10)+".json";
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(()=>URL.revokeObjectURL(url),1000);
-}
-async function backupData(){
   const payload={
     app:"wage_delivery_app",
     version:1,
@@ -358,27 +349,14 @@ async function backupData(){
   const filename="wage_delivery_backup_"+new Date().toISOString().slice(0,10)+".json";
 
   try{
-    const file=new File([text],filename,{type:"application/json"});
-
-    if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
-      await navigator.share({
-        title:"給料・出前バックアップ",
-        text:"アプリのデータバックアップ",
-        files:[file]
-      });
-      return;
-    }
-  }catch(e){
-    if(e && e.name==="AbortError") return;
-  }
-
-  try{
     const blob=new Blob([text],{type:"application/json"});
     const url=URL.createObjectURL(blob);
     const a=document.createElement("a");
+
     a.href=url;
     a.download=filename;
     a.style.display="none";
+
     document.body.appendChild(a);
     a.click();
 
@@ -386,8 +364,9 @@ async function backupData(){
       a.remove();
       URL.revokeObjectURL(url);
     },1500);
+
   }catch(e){
-    alert("バックアップを保存できませんでした。Chromeで開いてもう一度試してね。");
+    alert("バックアップを保存できませんでした。");
   }
 }
 function printWageView(){
@@ -448,7 +427,6 @@ printWage.onclick=printWageView; printDelivery.onclick=printDeliveryView;
 document.getElementById("backupData").onclick=backupData;
 restoreData.onclick=()=>restoreFile.click();
 restoreFile.onchange=()=>{const f=restoreFile.files&&restoreFile.files[0];restoreData(f);restoreFile.value=""};
-alert("テスト開始！");
 init();
 </script>
 
