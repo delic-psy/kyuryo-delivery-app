@@ -159,6 +159,7 @@ hr{border:0;border-top:1px solid #ddd;margin:16px 0}
     <h3>🏪 店舗別月間合計</h3>
     <p class="muted">同じ店舗を何回入力しても、月内の全日分をまとめて集計するよ♪</p>
     <table>
+        
       <thead><tr><th>店舗・注文先</th><th>この店は何件</th><th>この店の合計</th></tr></thead>
       <tbody id="storeBody"></tbody>
       <tfoot><tr><th>月間総合計</th><th id="storeCount">0件</th><th id="storeAmount">¥0</th></tr></tfoot>
@@ -444,7 +445,7 @@ addDelivery.onclick=()=>{dayRows().push({shop:"",amount:0,count:1});save();rende
 manageShops.onclick=()=>{shopManager.style.display=shopManager.style.display==="none"?"":"none";renderShops()};
 saveShop.onclick=()=>{const n=newShopName.value.trim();if(n&&!db.shops.includes(n)){db.shops.push(n);newShopName.value="";save();renderShops();renderDelivery()}};
 printWage.onclick=printWageView; printDelivery.onclick=printDeliveryView;
-document.getElementById("backupData").onclick=()=>alert("バックアップボタンは動いてるよ！");
+document.getElementById("backupData").onclick=backupData;
 restoreData.onclick=()=>restoreFile.click();
 restoreFile.onchange=()=>{const f=restoreFile.files&&restoreFile.files[0];restoreData(f);restoreFile.value=""};
 alert("テスト開始！");
