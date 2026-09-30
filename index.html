@@ -1,1 +1,836 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>給料・出前 集計アプリ v7</title>
+<style>
+*{box-sizing:border-box}
+body{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Noto Sans JP",sans-serif;margin:0;background:#f6f7fb;color:#222}
+header{background:#fff;padding:16px;border-bottom:1px solid #ddd;position:sticky;top:0;z-index:5}
+h1{font-size:20px;margin:0 0 10px} h2{font-size:18px;margin:18px 0 10px} h3{font-size:16px;margin:14px 0 8px}
+main{max-width:1000px;margin:auto;padding:12px}
+nav{display:flex;gap:8px;flex-wrap:wrap}
+button,.btn,select,input{font:inherit}
+button,.btn{border:0;border-radius:10px;padding:9px 12px;background:#333;color:#fff;cursor:pointer}
+button.secondary{background:#777} button.danger{background:#a33} button.add{background:#26734d}
+button.active{background:#1769aa}
+.card{background:#fff;border:1px solid #ddd;border-radius:14px;padding:14px;margin:12px 0;box-shadow:0 1px 3px #0000000a}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+label{font-size:13px;color:#555;display:block;margin-bottom:4px}
+input,select{border:1px solid #bbb;border-radius:8px;padding:8px;background:#fff;min-height:40px}
+input[type=number]{width:120px}.money{width:130px}
+table{width:100%;border-collapse:collapse;margin-top:8px}
+th,td{border:1px solid #ddd;padding:7px;text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{background:#f0f2f6}
+.total{font-weight:700;font-size:18px;text-align:right;margin-top:10px}
+.muted{color:#777;font-size:13px}
+.daybox{border:1px solid #ddd;border-radius:12px;padding:10px;margin:10px 0;background:#fff}
+.daytitle{display:flex;justify-content:space-between;align-items:center;font-weight:700}
+.delivery-grid{display:grid;grid-template-columns:minmax(150px,1.5fr) minmax(100px,1fr) 80px 44px;gap:6px;align-items:center;margin-top:8px}
+.delivery-grid.header{font-size:12px;color:#666}
+.delivery-grid .shop{width:100%}
+.small{font-size:12px}
+hr{border:0;border-top:1px solid #ddd;margin:16px 0}
+#printArea{display:none}
 
+.time-grid{display:grid;grid-template-columns:repeat(2,minmax(150px,1fr));gap:10px;margin-top:10px}
+.time-field label{margin-bottom:4px}
+.day-actions{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
+.day-delete{background:#a33!important}
+.person-rates{font-size:13px;color:#666;margin-top:6px}
+.print-select-list{display:grid;grid-template-columns:repeat(2,minmax(140px,1fr));gap:6px;margin:8px 0}
+.print-select-list label{display:flex;align-items:center;gap:6px;border:1px solid #ddd;border-radius:8px;padding:8px;background:#fafafa;color:#222}
+.print-person-card{border:1px solid #999;padding:10px;margin:0 0 12px;break-inside:avoid}
+.cut-line{border-top:1px dashed #777;margin:10px 0}
+@media(max-width:650px){.time-grid{grid-template-columns:1fr}.print-select-list{grid-template-columns:1fr}}
+@media print{
+  @page{size:A4;margin:10mm}
+  .print-person-card{margin:0;padding:8px}
+  .print-person-card table{font-size:12px}
+  .cut-line{border-top:1px dashed #555}
+}
+
+@media(max-width:650px){
+  .delivery-grid{grid-template-columns:1fr 110px 65px 42px}
+  .delivery-grid.header{display:none}
+  input[type=number]{width:100%}.money{width:100%}
+  th,td{padding:6px;font-size:13px}
+}
+@media print{
+  body{background:#fff}
+  body>*:not(#printArea){display:none!important}
+  #printArea{display:block}
+  table{font-size:11px}
+  #printArea b{font-weight:700}
+  #printArea .rate{font-weight:700}
+  #printArea .rate[style*="background"]{background:#fff3a3!important}
+}
+@media print{
+  /* 出前印刷：2〜3ページ。無理に縮小せず、普通に読める大きさを優先 */
+  @page{size:A4 portrait;margin:10mm}
+  #printArea{width:100%;font-family:sans-serif;color:#111}
+  #printArea table{border-collapse:collapse;width:100%;margin:0}
+
+  /* 1ページ目：日別合計 */
+  #printArea .delivery-print-page1{break-after:page;page-break-after:always}
+  #printArea .delivery-print-page1 h2{font-size:20px;margin:0 0 12px;line-height:1.2}
+  #printArea .delivery-print-page1 h3{font-size:16px;margin:0 0 8px}
+  /* 月間（日別）はA4 1枚をしっかり使う。文字を小さくせず、読みやすさ優先。 */
+  #printArea .delivery-print-page1 table{font-size:13.5px;line-height:1.3}
+  #printArea .delivery-print-page1 th,#printArea .delivery-print-page1 td{padding:5px 7px;height:auto;border:1px solid #aaa}
+
+  /* 最終日＋月間総合計をしっかり強調 */
+  #printArea .delivery-final td,#printArea .delivery-final th{font-weight:800;border-top:2px solid #222;border-bottom:2px solid #222}
+  #printArea .delivery-month-total{font-size:14px;font-weight:800}
+  #printArea .delivery-month-total td,#printArea .delivery-month-total th{border-top:2px solid #111;border-bottom:3px double #111}
+
+  /* 2ページ目以降：店舗別。2列で読みやすく。多ければ3ページ目へ */
+  #printArea .delivery-print-store{break-before:page;page-break-before:always}
+  #printArea .delivery-print-store h3{font-size:17px;margin:0 0 9px}
+  #printArea .delivery-store-columns{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
+  #printArea .delivery-store-col{min-width:0}
+  #printArea .delivery-print-store table{font-size:11px;line-height:1.2}
+  #printArea .delivery-print-store th,#printArea .delivery-print-store td{padding:4px 5px;line-height:1.2;height:auto;border:1px solid #bbb}
+  #printArea .delivery-print-store th{font-weight:700}
+  #printArea .delivery-print-store tr{break-inside:avoid;page-break-inside:avoid}
+}
+</style>
+
+<meta name="theme-color" content="#333333">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="給料・出前集計">
+<link rel="manifest" href="manifest.json">
+
+<style>
+#pwaInstall{display:none;margin:10px 0;padding:12px;border-radius:12px;background:#eef6ff;border:1px solid #b9d8f5}
+#pwaInstall button{background:#1769aa}
+#installHelp{display:none;margin-top:8px;font-size:13px;color:#555;line-height:1.6}
+</style>
+</head>
+<body>
+<header>
+  <h1>📒 給料・出前 集計アプリ v7</h1><div class="small" style="margin:4px 0 10px;text-align:center">1分入力・15分計算／深夜判定修正版2 ＋追加勤務・店舗削除【テスト版10】</div>
+  <nav>
+    <button id="tabWage" class="active">👛 給料計算</button>
+    <button id="tabDelivery">🛵 出前集計</button>
+  </nav>
+</header>
+
+
+<div id="pwaInstall">
+  <div><strong>📱 ホーム画面に置けるよ♪</strong></div>
+  <div class="muted">Chromeなら「インストール」または「ホーム画面に追加」が出ることがあります。</div>
+  <button id="installBtn" style="margin-top:8px">ホーム画面に追加</button>
+  <button id="helpBtn" class="secondary" style="margin-top:8px">追加方法を見る</button>
+  <div id="installHelp">
+    <b>Chromeの場合：</b>右上の「︙」→「アプリをインストール」または「ホーム画面に追加」。<br>
+    ※HTMLファイルを端末内から直接開いた場合は、PWAのインストール機能が使えないことがあります。その場合は、このアプリをHTTPSのWebサイトとして公開して開く必要があります。
+  </div>
+</div>
+<main>
+<section id="wagePage">
+  <div class="card">
+    <h2>👤 人を選択</h2>
+    <div class="row">
+      <select id="personSelect"></select>
+      <button id="addPerson" class="add">＋ 人を追加</button>
+      <button id="renamePerson" class="secondary">名前変更</button>
+      <button id="deletePerson" class="danger">削除</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>💴 この人の給与設定</h2>
+    <div class="row">
+      <div>
+        <label>給与方式</label>
+        <select id="payMode">
+          <option value="hourly">時給計算</option>
+          <option value="fixedMinus">固定給 − 時間給</option>
+        </select>
+      </div>
+      <div id="fixedSalaryBox" style="display:none">
+        <label>固定給</label>
+        <input id="fixedSalary" type="number" min="0" placeholder="固定給">
+      </div>
+      <div><label>平日①</label><input id="rateWeek" type="number" min="0"></div>
+      <div><label>金土・祝①</label><input id="rateFS" type="number" min="0"></div>
+      <div><label>22:00以降②</label><input id="rateNight" type="number" min="0"></div>
+      <button id="saveRates">保存</button>
+    </div>
+    <div class="person-rates">人を切り替えると、その人の時給設定に自動で切り替わるよ♪</div>
+  </div>
+
+  <div class="card">
+    <h2>💾 データ管理</h2>
+    <div class="row">
+      <button id="backupData">💾 バックアップ</button>
+      <button id="restoreData" class="secondary">↩ 復元</button>
+      <input id="restoreFile" type="file" accept=".json,application/json" hidden>
+    </div>
+    <p class="muted">スマホ変更・機種変更・ブラウザのデータ削除に備えて、たまにバックアップしておくと安心だよ♪ v6と同じ保存場所を使うので、GitHub Pagesのindex.htmlをv7に置き換えれば今までのデータを引き継げるよ。</p>
+  </div>
+  <div class="card">
+    <h3>🖨️ 印刷する人を選択</h3>
+    <div id="printPersonList" class="print-select-list"></div>
+    <p class="muted">選んだ人を1枚に3人ずつ、切り取り線つきで印刷するよ♪ 何も選ばなければ今選んでいる人だけ印刷。</p>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <div><label>月</label><input id="wageMonth" type="month"></div>
+      <button id="renderWage">表示</button>
+      <button id="printWage">🖨️ 給料を印刷</button>
+    </div>
+    <div id="wageDays"></div>
+    <div class="total">月間合計：<span id="wageMonthTotal">¥0</span></div>
+  </div>
+</section>
+
+<section id="deliveryPage" style="display:none">
+  <div class="card">
+    <h2>🛵 出前集計</h2>
+    <p class="muted">💡 店舗名は一度登録すれば、次から選ぶだけ♪ 同じ日に同じ店が何件あっても別々に入力できます。店舗別集計で自動合算します。</p>
+    <div class="row">
+      <div><label>月</label><input id="dMonth" type="month"></div>
+      <div><label>日</label><select id="dDay"></select></div>
+      <button id="addDelivery" class="add">＋ 注文を追加</button>
+      <button id="manageShops" class="secondary">🏪 店舗管理（登録・削除）</button>
+      <button id="printDelivery">🖨️ 月間印刷</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>📝 この日の注文</h3>
+    <div class="delivery-grid header"><div>店舗・注文先</div><div>注文金額</div><div>件数</div><div></div></div>
+    <div id="deliveryRows"></div>
+    <div class="total">この日の合計：<span id="deliveryDayTotal">¥0</span></div>
+  </div>
+
+  <div class="card">
+    <h3>📅 日別合計</h3>
+    <table>
+      <thead><tr><th>日付</th><th>件数</th><th>売上合計</th></tr></thead>
+      <tbody id="dailyBody"></tbody>
+      <tfoot><tr><th>月間総合計</th><th id="monthlyCount">0件</th><th id="monthlyAmount">¥0</th></tr></tfoot>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>🏪 店舗別月間合計</h3>
+    <p class="muted">同じ店舗を何回入力しても、月内の全日分をまとめて集計するよ♪</p>
+    <table>
+        
+      <thead><tr><th>店舗・注文先</th><th>この店は何件</th><th>この店の合計</th></tr></thead>
+      <tbody id="storeBody"></tbody>
+      <tfoot><tr><th>月間総合計</th><th id="storeCount">0件</th><th id="storeAmount">¥0</th></tr></tfoot>
+    </table>
+  </div>
+
+  <div id="shopManager" class="card" style="display:none">
+    <h3>🏪 店舗管理</h3>
+    <div class="row">
+      <input id="newShopName" placeholder="新しい店舗名">
+      <button id="saveShop" class="add">登録</button>
+    </div>
+    <div id="shopList" style="margin-top:10px"></div>
+  </div>
+</section>
+</main>
+
+<div id="printArea"></div>
+
+<script>
+const KEY="wage_delivery_app_v7_segments_1min_15min_calc_20260914_FIXED2";
+const TEST_BUILD=true;
+const STORAGE_KEY=TEST_BUILD?KEY+"_TEST_20260929":KEY;
+const EMBEDDED_BACKUP={"app":"wage_delivery_app","version":7,"savedAt":"2026-09-29T14:13:16.153Z","data":{"rates":{"week":1065,"fs":1400,"night":1331},"people":{"佐久間":{"rates":{"week":1065,"fs":1400,"night":1331},"payMode":"hourly","fixedSalary":0,"2026-09-01":{"segments":[{"start":"","end":""}]},"2026-08-01":{"segments":[{"start":"17:56","end":"22:00"},{"start":"22:00","end":"01:16"}]},"2026-08-05":{"segments":[{"start":"17:56","end":"22:00"},{"start":"22:00","end":"01:01"}]},"2026-08-04":{"segments":[{"start":"21:21","end":"22:00"},{"start":"22:00","end":"02:30"}]},"2026-08-06":{"segments":[{"start":"17:47","end":"22:00"},{"start":"22:00","end":"00:00"}]},"2026-08-07":{"segments":[{"start":"18:01","end":"22:00"},{"start":"22:00","end":"03:51"}]},"2026-08-08":{"segments":[{"start":"17:51","end":"22:00"},{"start":"22:00","end":"01:00"}]},"2026-08-09":{"segments":[{"start":"19:36","end":"22:00"},{"start":"22:00","end":"00:15"}]},"2026-08-10":{"segments":[{"start":"19:35","end":"22:00"},{"start":"22:00","end":"03:15"}]},"2026-08-11":{"segments":[{"start":"22:34","end":"00:13"}]},"2026-08-12":{"segments":[{"start":"18:28","end":"22:00"},{"start":"22:00","end":"00:08"}]},"2026-08-14":{"segments":[{"start":"20:46","end":"22:00"},{"start":"22:00","end":"01:00"}]},"2026-08-15":{"segments":[{"start":"19:29","end":"22:00"},{"start":"22:00","end":"03:57"}]},"2026-08-18":{"segments":[{"start":"21:30","end":"22:00"},{"start":"22:00","end":"00:05"}]},"2026-08-21":{"segments":[{"start":"17:45","end":"22:00"},{"start":"22:00","end":"03:40"}]},"2026-08-22":{"segments":[{"start":"19:42","end":"22:00"},{"start":"22:00","end":"05:00"}]},"2026-08-26":{"segments":[{"start":"19:49","end":"22:00"},{"start":"22:00","end":"00:02"}]},"2026-08-27":{"segments":[{"start":"19:44","end":"22:00"},{"start":"22:00","end":"03:00"}]},"2026-08-28":{"segments":[{"start":"17:44","end":"22:00"},{"start":"22:00","end":"03:01"}]},"2026-08-29":{"segments":[{"start":"19:34","end":"22:00"},{"start":"22:00","end":"03:01"}]},"2026-09-02":{"segments":[{"start":"17:46","end":"22:00"},{"start":"22:00","end":"23:30"}]},"2026-09-03":{"segments":[{"start":"17:48","end":"22:00"},{"start":"22:00","end":"00:30"}]},"2026-09-04":{"segments":[{"start":"17:42","end":"22:00"},{"start":"22:00","end":"23:46"},{"start":"00:51","end":"03:00"}]},"2026-09-05":{"segments":[{"start":"17:49","end":"22:00"},{"start":"22:00","end":"01:31"}]},"2026-09-06":{"segments":[{"start":"","end":""}]},"2026-09-07":{"segments":[{"start":"","end":""}]},"2026-09-08":{"segments":[{"start":"","end":""}]},"2026-09-09":{"segments":[{"start":"17:46","end":"22:00"},{"start":"22:00","end":"00:03"}]},"2026-09-10":{"segments":[{"start":"19:40","end":"21:51"},{"start":"23:15","end":"00:15"}]},"2026-09-11":{"segments":[{"start":"17:50","end":"22:00"},{"start":"22:00","end":"03:09"}]},"2026-09-12":{"segments":[{"start":"19:32","end":"22:00"},{"start":"22:00","end":"03:15"}]},"2026-09-13":{"segments":[{"start":"","end":""},{"start":"","end":""}]},"2026-09-14":{"segments":[{"start":"","end":""}]},"2026-09-15":{"segments":[{"start":"19:30","end":"22:00"},{"start":"22:00","end":"23:05"},{"start":"00:07","end":"02:40"}]},"2026-09-16":{"segments":[{"start":"18:00","end":"22:00"},{"start":"22:00","end":"03:09"}]},"2026-09-17":{"segments":[{"start":"17:50","end":"22:00"},{"start":"22:00","end":"23:46"}]},"2026-09-18":{"segments":[{"start":"18:14","end":"22:00"},{"start":"22:00","end":"03:15"}]},"2026-09-19":{"segments":[{"start":"19:44","end":"22:00"},{"start":"22:00","end":"02:16"}]},"2026-09-20":{"segments":[{"start":"18:00","end":"22:00"},{"start":"22:00","end":"23:15"}]},"2026-09-21":{"segments":[{"start":"17:47","end":"21:12"},{"start":"22:36","end":"00:39"}]},"2026-09-22":{"segments":[{"start":"21:30","end":"22:00"},{"start":"22:00","end":"03:00"}]},"2026-09-23":{"segments":[{"start":"21:16","end":"22:00"},{"start":"22:00","end":"03:05"}]},"2026-09-24":{"segments":[{"start":"21:23","end":"22:00"},{"start":"22:00","end":"03:00"}]},"2026-09-25":{"segments":[{"start":"17:46","end":"22:00"},{"start":"22:00","end":"03:02"}]},"2026-09-26":{"segments":[{"start":"19:45","end":"22:00"},{"start":"22:00","end":"03:15"}]},"2026-09-27":{"segments":[{"start":"","end":""}]},"2026-09-28":{"segments":[{"start":"","end":""}]},"2026-09-29":{"segments":[{"start":"","end":""}]},"2026-09-30":{"segments":[{"start":"","end":""}]},"2026-08-02":{"segments":[{"start":"","end":""}]},"2026-08-03":{"segments":[{"start":"","end":""}]},"2026-08-13":{"segments":[{"start":"","end":""}]},"2026-08-16":{"segments":[{"start":"","end":""}]},"2026-08-17":{"segments":[{"start":"","end":""}]},"2026-08-19":{"segments":[{"start":"","end":""}]},"2026-08-20":{"segments":[{"start":"","end":""}]},"2026-08-23":{"segments":[{"start":"","end":""}]},"2026-08-24":{"segments":[{"start":"","end":""}]},"2026-08-25":{"segments":[{"start":"","end":""}]},"2026-08-30":{"segments":[{"start":"","end":""}]},"2026-08-31":{"segments":[{"start":"","end":""}]},"2026-11-01":{"segments":[{"start":"","end":""}]},"2026-11-02":{"segments":[{"start":"","end":""}]},"2026-11-03":{"segments":[{"start":"","end":""}]},"2026-11-04":{"segments":[{"start":"","end":""}]},"2026-11-05":{"segments":[{"start":"","end":""}]},"2026-11-06":{"segments":[{"start":"","end":""}]},"2026-11-07":{"segments":[{"start":"","end":""}]},"2026-11-08":{"segments":[{"start":"","end":""}]},"2026-11-09":{"segments":[{"start":"","end":""}]},"2026-11-10":{"segments":[{"start":"","end":""}]},"2026-11-11":{"segments":[{"start":"","end":""}]},"2026-11-12":{"segments":[{"start":"","end":""}]},"2026-11-13":{"segments":[{"start":"","end":""}]},"2026-11-14":{"segments":[{"start":"","end":""}]},"2026-11-15":{"segments":[{"start":"","end":""}]},"2026-11-16":{"segments":[{"start":"","end":""}]},"2026-11-17":{"segments":[{"start":"","end":""}]},"2026-11-18":{"segments":[{"start":"","end":""}]},"2026-11-19":{"segments":[{"start":"","end":""}]},"2026-11-20":{"segments":[{"start":"","end":""}]},"2026-11-21":{"segments":[{"start":"","end":""}]},"2026-11-22":{"segments":[{"start":"","end":""}]},"2026-11-23":{"segments":[{"start":"","end":""}]},"2026-11-24":{"segments":[{"start":"","end":""}]},"2026-11-25":{"segments":[{"start":"","end":""}]},"2026-11-26":{"segments":[{"start":"","end":""}]},"2026-11-27":{"segments":[{"start":"","end":""}]},"2026-11-28":{"segments":[{"start":"","end":""}]},"2026-11-29":{"segments":[{"start":"","end":""}]},"2026-11-30":{"segments":[{"start":"","end":""}]}},"小夏":{"rates":{"week":1065,"fs":1400,"night":1331},"payMode":"fixedMinus","fixedSalary":200000,"2026-09-04":{"segments":[{"start":"18:00","end":"18:15"}]},"2026-09-01":{"segments":[{"start":"18:00","end":"18:30"}]},"2026-08-01":{"segments":[{"start":"18:00","end":"22:00"},{"start":"22:00","end":"03:00"}]},"2026-08-04":{"segments":[{"start":"18:00","end":"22:00"},{"start":"22:00","end":"03:00"}]},"2026-08-05":{"segments":[{"start":"18:00","end":"22:00"},{"start":"22:00","end":"03:00"}]},"2026-08-06":{"segments":[{"start":"18:00","end":"22:00"},{"start":"22:00","end":"03:00"}]},"2026-08-07":{"segments":[{"start":"18:00","end":"22:00"},{"start":"22:00","end":"03:00"}]},"2026-08-08":{"segments":[{"start":"18:00","end":"22:00"},{"start":"22:00","end":"03:00"}]},"2026-08-11":{"segments":[{"start":"18:00","end":"22:00"},{"start":"22:00","end":"03:00"}]},"2026-08-12":{"segments":[{"start":"18:00","end":"22:00"},{"start":"22:00","end":"03:00"}]},"2026-08-13":{"segments":[{"start":"18:00","end":"22:00"},{"start":"22:00","end":"03:00"}]},"2026-08-14":{"segments":[{"start":"18:00","end":"22:00"},{"start":"22:00","end":"03:00"}]},"2026-08-15":{"segments":[{"start":"18:00","end":"22:00"},{"start":"22:00","end":"03:00"}]},"2026-08-02":{"segments":[{"start":"","end":""}]},"2026-08-03":{"segments":[{"start":"","end":""}]},"2026-08-09":{"segments":[{"start":"","end":""}]},"2026-08-10":{"segments":[{"start":"","end":""}]},"2026-08-16":{"segments":[{"start":"","end":""}]},"2026-08-17":{"segments":[{"start":"","end":""}]},"2026-08-18":{"segments":[{"start":"","end":""}]},"2026-08-19":{"segments":[{"start":"","end":""}]},"2026-08-20":{"segments":[{"start":"","end":""}]},"2026-08-21":{"segments":[{"start":"","end":""}]},"2026-08-22":{"segments":[{"start":"","end":""}]},"2026-08-23":{"segments":[{"start":"","end":""}]},"2026-08-24":{"segments":[{"start":"","end":""}]},"2026-08-25":{"segments":[{"start":"","end":""}]},"2026-08-26":{"segments":[{"start":"","end":""}]},"2026-08-27":{"segments":[{"start":"","end":""}]},"2026-08-28":{"segments":[{"start":"","end":""}]},"2026-08-29":{"segments":[{"start":"","end":""}]},"2026-08-30":{"segments":[{"start":"","end":""}]},"2026-08-31":{"segments":[{"start":"","end":""}]}},"ゆな":{"rates":{"week":1400,"fs":1400,"night":1400},"payMode":"hourly","fixedSalary":0,"2026-08-18":{"segments":[{"start":"17:58","end":"21:30"}]},"2026-08-25":{"segments":[{"start":"17:57","end":"21:30"}]},"2026-08-27":{"segments":[{"start":"17:58","end":"20:00"}]},"2026-08-28":{"segments":[{"start":"17:50","end":"21:30"}]},"2026-08-29":{"segments":[{"start":"18:00","end":"20:00"}]},"2026-09-01":{"segments":[{"start":"","end":""}]},"2026-09-02":{"segments":[{"start":"","end":""}]},"2026-09-03":{"segments":[{"start":"","end":""}]},"2026-09-04":{"segments":[{"start":"","end":""}]},"2026-09-05":{"segments":[{"start":"","end":""}]},"2026-09-06":{"segments":[{"start":"","end":""}]},"2026-09-07":{"segments":[{"start":"","end":""}]},"2026-09-08":{"segments":[{"start":"","end":""}]},"2026-09-09":{"segments":[{"start":"","end":""}]},"2026-09-10":{"segments":[{"start":"","end":""}]},"2026-09-11":{"segments":[{"start":"","end":""}]},"2026-09-12":{"segments":[{"start":"","end":""}]},"2026-09-13":{"segments":[{"start":"","end":""}]},"2026-09-14":{"segments":[{"start":"","end":""}]},"2026-09-15":{"segments":[{"start":"","end":""}]},"2026-09-16":{"segments":[{"start":"","end":""}]},"2026-09-17":{"segments":[{"start":"","end":""}]},"2026-09-18":{"segments":[{"start":"","end":""}]},"2026-09-19":{"segments":[{"start":"","end":""}]},"2026-09-20":{"segments":[{"start":"","end":""}]},"2026-09-21":{"segments":[{"start":"","end":""}]},"2026-09-22":{"segments":[{"start":"","end":""}]},"2026-09-23":{"segments":[{"start":"","end":""}]},"2026-09-24":{"segments":[{"start":"","end":""}]},"2026-09-25":{"segments":[{"start":"","end":""}]},"2026-09-26":{"segments":[{"start":"","end":""}]},"2026-09-27":{"segments":[{"start":"","end":""}]},"2026-09-28":{"segments":[{"start":"","end":""}]},"2026-09-29":{"segments":[{"start":"","end":""}]},"2026-09-30":{"segments":[{"start":"","end":""}]},"2026-08-01":{"segments":[{"start":"","end":""}]},"2026-08-02":{"segments":[{"start":"","end":""}]},"2026-08-03":{"segments":[{"start":"","end":""}]},"2026-08-04":{"segments":[{"start":"","end":""}]},"2026-08-05":{"segments":[{"start":"","end":""}]},"2026-08-06":{"segments":[{"start":"","end":""}]},"2026-08-07":{"segments":[{"start":"","end":""}]},"2026-08-08":{"segments":[{"start":"","end":""}]},"2026-08-09":{"segments":[{"start":"","end":""}]},"2026-08-10":{"segments":[{"start":"","end":""}]},"2026-08-11":{"segments":[{"start":"","end":""}]},"2026-08-12":{"segments":[{"start":"","end":""}]},"2026-08-13":{"segments":[{"start":"","end":""}]},"2026-08-14":{"segments":[{"start":"","end":""}]},"2026-08-15":{"segments":[{"start":"","end":""}]},"2026-08-16":{"segments":[{"start":"","end":""}]},"2026-08-17":{"segments":[{"start":"","end":""}]},"2026-08-19":{"segments":[{"start":"18:00","end":"21:30"}]},"2026-08-20":{"segments":[{"start":"","end":""}]},"2026-08-21":{"segments":[{"start":"","end":""}]},"2026-08-22":{"segments":[{"start":"","end":""}]},"2026-08-23":{"segments":[{"start":"","end":""}]},"2026-08-24":{"segments":[{"start":"","end":""}]},"2026-08-26":{"segments":[{"start":"","end":""}]},"2026-08-30":{"segments":[{"start":"","end":""}]},"2026-08-31":{"segments":[{"start":"","end":""}]}},"ぜんのすけ":{"rates":{"week":1065,"fs":1400,"night":1331},"payMode":"hourly","fixedSalary":0,"2026-08-01":{"segments":[{"start":"18:00","end":"21:00"}]},"2026-08-04":{"segments":[{"start":"18:02","end":"22:00"},{"start":"22:00","end":"23:00"}]},"2026-08-07":{"segments":[{"start":"19:09","end":"22:00"},{"start":"22:00","end":"23:30"},{"start":"00:30","end":"03:45"}]},"2026-08-08":{"segments":[{"start":"18:02","end":"22:00"},{"start":"22:00","end":"01:00"}]},"2026-08-11":{"segments":[{"start":"18:00","end":"22:00"},{"start":"22:00","end":"22:30"}]},"2026-08-14":{"segments":[{"start":"18:00","end":"21:30"}]},"2026-08-15":{"segments":[{"start":"18:00","end":"22:00"}]},"2026-08-21":{"segments":[{"start":"21:00","end":"22:00"},{"start":"22:00","end":"00:30"}]},"2026-08-22":{"segments":[{"start":"23:51","end":"05:30"}]},"2026-08-25":{"segments":[{"start":"18:00","end":"21:00"}]},"2026-08-28":{"segments":[{"start":"20:51","end":"22:00"},{"start":"22:00","end":"00:16"}]},"2026-08-29":{"segments":[{"start":"18:52","end":"22:00"},{"start":"22:00","end":"00:30"}]},"2026-09-01":{"segments":[{"start":"","end":""}]},"2026-09-02":{"segments":[{"start":"","end":""}]},"2026-09-03":{"segments":[{"start":"","end":""}]},"2026-09-04":{"segments":[{"start":"","end":""}]},"2026-09-05":{"segments":[{"start":"","end":""}]},"2026-09-06":{"segments":[{"start":"","end":""}]},"2026-09-07":{"segments":[{"start":"","end":""}]},"2026-09-08":{"segments":[{"start":"","end":""}]},"2026-09-09":{"segments":[{"start":"","end":""}]},"2026-09-10":{"segments":[{"start":"","end":""}]},"2026-09-11":{"segments":[{"start":"","end":""}]},"2026-09-12":{"segments":[{"start":"","end":""}]},"2026-09-13":{"segments":[{"start":"","end":""}]},"2026-09-14":{"segments":[{"start":"","end":""}]},"2026-09-15":{"segments":[{"start":"","end":""}]},"2026-09-16":{"segments":[{"start":"","end":""}]},"2026-09-17":{"segments":[{"start":"","end":""}]},"2026-09-18":{"segments":[{"start":"","end":""}]},"2026-09-19":{"segments":[{"start":"","end":""}]},"2026-09-20":{"segments":[{"start":"","end":""}]},"2026-09-21":{"segments":[{"start":"","end":""}]},"2026-09-22":{"segments":[{"start":"","end":""}]},"2026-09-23":{"segments":[{"start":"","end":""}]},"2026-09-24":{"segments":[{"start":"","end":""}]},"2026-09-25":{"segments":[{"start":"","end":""}]},"2026-09-26":{"segments":[{"start":"","end":""}]},"2026-09-27":{"segments":[{"start":"","end":""}]},"2026-09-28":{"segments":[{"start":"","end":""}]},"2026-09-29":{"segments":[{"start":"","end":""}]},"2026-09-30":{"segments":[{"start":"","end":""}]},"2026-08-02":{"segments":[{"start":"","end":""}]},"2026-08-03":{"segments":[{"start":"","end":""}]},"2026-08-05":{"segments":[{"start":"","end":""}]},"2026-08-06":{"segments":[{"start":"","end":""}]},"2026-08-09":{"segments":[{"start":"","end":""}]},"2026-08-10":{"segments":[{"start":"","end":""}]},"2026-08-12":{"segments":[{"start":"","end":""}]},"2026-08-13":{"segments":[{"start":"","end":""}]},"2026-08-16":{"segments":[{"start":"","end":""}]},"2026-08-17":{"segments":[{"start":"","end":""}]},"2026-08-18":{"segments":[{"start":"","end":""}]},"2026-08-19":{"segments":[{"start":"","end":""}]},"2026-08-20":{"segments":[{"start":"","end":""}]},"2026-08-23":{"segments":[{"start":"","end":""}]},"2026-08-24":{"segments":[{"start":"","end":""}]},"2026-08-26":{"segments":[{"start":"","end":""}]},"2026-08-27":{"segments":[{"start":"","end":""}]},"2026-08-30":{"segments":[{"start":"","end":""}]},"2026-08-31":{"segments":[{"start":"","end":""}]}},"美海":{"rates":{"week":1500,"fs":1500,"night":1500},"payMode":"hourly","fixedSalary":0,"2026-08-01":{"segments":[{"start":"17:59","end":"22:00"},{"start":"22:00","end":"23:00"}]},"2026-08-04":{"segments":[{"start":"17:58","end":"22:00"},{"start":"22:00","end":"23:00"}]},"2026-08-07":{"segments":[{"start":"17:56","end":"22:00"},{"start":"22:00","end":"23:05"}]},"2026-08-10":{"segments":[{"start":"18:00","end":"22:00"},{"start":"22:00","end":"23:00"}]},"2026-08-13":{"segments":[{"start":"17:58","end":"22:00"},{"start":"22:00","end":"23:00"}]},"2026-08-15":{"segments":[{"start":"17:56","end":"22:00"},{"start":"22:00","end":"22:30"}]},"2026-08-18":{"segments":[{"start":"17:56","end":"22:00"},{"start":"22:00","end":"23:00"}]},"2026-08-21":{"segments":[{"start":"17:55","end":"22:00"},{"start":"22:00","end":"23:00"}]},"2026-08-27":{"segments":[{"start":"17:56","end":"22:00"},{"start":"22:00","end":"23:00"}]},"2026-08-29":{"segments":[{"start":"17:56","end":"22:00"},{"start":"22:00","end":"23:00"}]},"2026-08-02":{"segments":[{"start":"","end":""}]},"2026-08-03":{"segments":[{"start":"","end":""}]},"2026-08-05":{"segments":[{"start":"","end":""}]},"2026-08-06":{"segments":[{"start":"","end":""}]},"2026-08-08":{"segments":[{"start":"","end":""}]},"2026-08-09":{"segments":[{"start":"","end":""}]},"2026-08-11":{"segments":[{"start":"","end":""}]},"2026-08-12":{"segments":[{"start":"","end":""}]},"2026-08-14":{"segments":[{"start":"","end":""}]},"2026-08-16":{"segments":[{"start":"","end":""}]},"2026-08-17":{"segments":[{"start":"","end":""}]},"2026-08-19":{"segments":[{"start":"","end":""}]},"2026-08-20":{"segments":[{"start":"","end":""}]},"2026-08-22":{"segments":[{"start":"17:54","end":"22:00"},{"start":"22:00","end":"23:00"}]},"2026-08-23":{"segments":[{"start":"","end":""}]},"2026-08-24":{"segments":[{"start":"","end":""}]},"2026-08-25":{"segments":[{"start":"","end":""}]},"2026-08-26":{"segments":[{"start":"","end":""}]},"2026-08-28":{"segments":[{"start":"","end":""}]},"2026-08-30":{"segments":[{"start":"","end":""}]},"2026-08-31":{"segments":[{"start":"","end":""}]}},"中村":{"rates":{"week":1065,"fs":1400,"night":1331},"payMode":"hourly","fixedSalary":0,"2026-08-22":{"segments":[{"start":"18:00","end":"22:00"},{"start":"22:00","end":"22:32"}]},"2026-08-01":{"segments":[{"start":"","end":""}]},"2026-08-02":{"segments":[{"start":"","end":""}]},"2026-08-03":{"segments":[{"start":"","end":""}]},"2026-08-04":{"segments":[{"start":"","end":""}]},"2026-08-05":{"segments":[{"start":"","end":""}]},"2026-08-06":{"segments":[{"start":"","end":""}]},"2026-08-07":{"segments":[{"start":"","end":""}]},"2026-08-08":{"segments":[{"start":"","end":""}]},"2026-08-09":{"segments":[{"start":"","end":""}]},"2026-08-10":{"segments":[{"start":"","end":""}]},"2026-08-11":{"segments":[{"start":"","end":""}]},"2026-08-12":{"segments":[{"start":"","end":""}]},"2026-08-13":{"segments":[{"start":"","end":""}]},"2026-08-14":{"segments":[{"start":"","end":""}]},"2026-08-15":{"segments":[{"start":"","end":""}]},"2026-08-16":{"segments":[{"start":"","end":""}]},"2026-08-17":{"segments":[{"start":"","end":""}]},"2026-08-18":{"segments":[{"start":"","end":""}]},"2026-08-19":{"segments":[{"start":"","end":""}]},"2026-08-20":{"segments":[{"start":"","end":""}]},"2026-08-21":{"segments":[{"start":"","end":""}]},"2026-08-23":{"segments":[{"start":"","end":""}]},"2026-08-24":{"segments":[{"start":"","end":""}]},"2026-08-25":{"segments":[{"start":"","end":""}]},"2026-08-26":{"segments":[{"start":"","end":""}]},"2026-08-27":{"segments":[{"start":"","end":""}]},"2026-08-28":{"segments":[{"start":"","end":""}]},"2026-08-29":{"segments":[{"start":"","end":""}]},"2026-08-30":{"segments":[{"start":"","end":""}]},"2026-08-31":{"segments":[{"start":"","end":""}]}}},"delivery":{"2026-09":{"1":[{"shop":"ブルーバナナ","amount":4890,"count":1},{"shop":"ブルーバナナ","amount":4410,"count":1},{"shop":"マシェリナ","amount":3710,"count":1},{"shop":"フィッツ","amount":2770,"count":1},{"shop":"リリック","amount":5500,"count":1}],"2":[{"shop":"マシェリナ","amount":2930,"count":1}],"3":[{"shop":"バンチオブローゼス","amount":2890,"count":1},{"shop":"ブルーバナナ","amount":3500,"count":1},{"shop":"フォルテ","amount":2540,"count":1},{"shop":"彩華","amount":2900,"count":1},{"shop":"フィッツ","amount":3510,"count":1}],"4":[{"shop":"サルビア","amount":2900,"count":1},{"shop":"キューピット","amount":5160,"count":1},{"shop":"虹","amount":2440,"count":1},{"shop":"彩華","amount":3810,"count":1},{"shop":"テーズバー","amount":3540,"count":1},{"shop":"Bone","amount":3861,"count":1}],"5":[{"shop":"キューピット","amount":3710,"count":1},{"shop":"フィッツ","amount":6930,"count":1},{"shop":"バンチオブローゼス","amount":2550,"count":1},{"shop":"ゴヘル","amount":7370,"count":1},{"shop":"バンチオブローゼス","amount":4810,"count":1},{"shop":"サルビア","amount":2080,"count":1},{"shop":"虹","amount":1820,"count":1},{"shop":"バンチオブローゼス","amount":3270,"count":1},{"shop":"Stone","amount":3720,"count":1},{"shop":"アルジャン","amount":3763,"count":1},{"shop":"レオーズバー","amount":4211,"count":1},{"shop":"スター","amount":5531,"count":1}],"6":[{"shop":"ブルーバナナ","amount":3590,"count":1}],"7":[],"8":[{"shop":"Club Es","amount":1270,"count":1},{"shop":"マシェリナ","amount":2450,"count":1},{"shop":"サルビア","amount":2500,"count":1},{"shop":"ブルーバナナ","amount":3450,"count":1},{"shop":"ロゼラカフェ","amount":5090,"count":1},{"shop":"ViVi","amount":4820,"count":1},{"shop":"エミール","amount":4265,"count":1}],"9":[{"shop":"ダーム","amount":1300,"count":1},{"shop":"サルビア","amount":3000,"count":1},{"shop":"木蓮","amount":2890,"count":1}],"10":[{"shop":"マシェリナ","amount":850,"count":1},{"shop":"マシェリナ","amount":3100,"count":1},{"shop":"ダーム","amount":1950,"count":1},{"shop":"フォルテ","amount":3560,"count":1}],"11":[{"shop":"レオーズバー","amount":2018,"count":1},{"shop":"サルビア","amount":2900,"count":1},{"shop":"クラッカージャック","amount":3260,"count":1},{"shop":"スイートラビット","amount":5020,"count":1},{"shop":"彩華","amount":4850,"count":1},{"shop":"バンチオブローゼス","amount":4140,"count":1},{"shop":"彩華","amount":1100,"count":1},{"shop":"マシェリナ","amount":2345,"count":1},{"shop":"彩華","amount":3905,"count":1},{"shop":"BAR Rel","amount":2552,"count":1},{"shop":"ムギ","amount":9600,"count":1},{"shop":"虹","amount":1820,"count":1}],"12":[{"shop":"サルビア","amount":3660,"count":1},{"shop":"アルジャン","amount":3280,"count":1},{"shop":"Club Es","amount":1720,"count":1},{"shop":"New CROWN","amount":7770,"count":1},{"shop":"エミール","amount":6109,"count":1},{"shop":"木蓮","amount":2840,"count":1},{"shop":"クラッカージャック","amount":5320,"count":1},{"shop":"Club JIN","amount":2670,"count":1},{"shop":"プルチーノ","amount":3981,"count":1},{"shop":"マシェリナ","amount":3090,"count":1},{"shop":"Mrs.J","amount":5080,"count":1},{"shop":"Mrs.J","amount":3320,"count":1}],"13":[{"shop":"ブルーバナナ","amount":3150,"count":1}],"15":[{"shop":"ダーム","amount":500,"count":1},{"shop":"ブルーバナナ","amount":5420,"count":1},{"shop":"エミール","amount":6360,"count":1},{"shop":"フォルテ","amount":1550,"count":1},{"shop":"ブルーバナナ","amount":6160,"count":1},{"shop":"","amount":0,"count":1}],"16":[{"shop":"ペントハウス","amount":8540,"count":1},{"shop":"ダーム","amount":1300,"count":1},{"shop":"ラバーズ","amount":2270,"count":1},{"shop":"J&S","amount":1298,"count":1}],"17":[{"shop":"サルビア","amount":4960,"count":1},{"shop":"サラン","amount":2825,"count":1},{"shop":"オーパス","amount":7352,"count":1},{"shop":"ブルーバナナ","amount":750,"count":1},{"shop":"ブルーバナナ","amount":2450,"count":1},{"shop":"エミール","amount":3800,"count":1},{"shop":"マシェリナ","amount":2800,"count":1}],"18":[{"shop":"サルビア","amount":2500,"count":1},{"shop":"ロチェス","amount":3458,"count":1},{"shop":"アルジャン","amount":2792,"count":1},{"shop":"T.O","amount":2563,"count":1},{"shop":"ロチェス","amount":2454,"count":1}],"19":[{"shop":"サルビア","amount":2080,"count":1},{"shop":"ダーム","amount":650,"count":1},{"shop":"Club JIN","amount":5070,"count":1},{"shop":"木蓮","amount":3390,"count":1},{"shop":"マシェリナ","amount":3350,"count":1},{"shop":"マシェリナ","amount":3650,"count":1},{"shop":"Stone","amount":2550,"count":1},{"shop":"BAR Rel","amount":2660,"count":1},{"shop":"BAR Rel","amount":1700,"count":1},{"shop":"Club スイート","amount":3950,"count":1}],"20":[{"shop":"Club JIN","amount":1200,"count":1},{"shop":"ダーム","amount":1000,"count":1},{"shop":"クラッカージャック","amount":3570,"count":1},{"shop":"サラン","amount":2870,"count":1},{"shop":"Club JIN","amount":2700,"count":1},{"shop":"ブルーバナナ","amount":3350,"count":1}],"21":[{"shop":"松尾","amount":7390,"count":1},{"shop":"トップスピード","amount":22240,"count":1},{"shop":"サラン","amount":5400,"count":1},{"shop":"エミール","amount":1309,"count":1},{"shop":"ヴィラ","amount":6660,"count":1},{"shop":"ダーコ","amount":2520,"count":1},{"shop":"ブルーバナナ","amount":3560,"count":1},{"shop":"トップスピード","amount":3240,"count":1},{"shop":"はないちもんめ","amount":4190,"count":1}],"22":[{"shop":"Club JIN","amount":1200,"count":1},{"shop":"ダーム","amount":1000,"count":1},{"shop":"ブルーバナナ","amount":2070,"count":1},{"shop":"Mrs.J","amount":4620,"count":1},{"shop":"Club スイート","amount":5650,"count":1},{"shop":"プレイス","amount":2120,"count":1},{"shop":"ラフィーゼ","amount":6220,"count":1},{"shop":"ブルーバナナ","amount":2170,"count":1},{"shop":"スター","amount":2570,"count":1},{"shop":"Club JIN","amount":6060,"count":1},{"shop":"虹","amount":3676,"count":1},{"shop":"豚に真珠","amount":3894,"count":1},{"shop":"","amount":0,"count":1}],"23":[{"shop":"Club スイート","amount":7740,"count":1},{"shop":"T.O","amount":2500,"count":1},{"shop":"T.O","amount":1660,"count":1}],"24":[{"shop":"ブルーバナナ","amount":4620,"count":1},{"shop":"松尾","amount":4440,"count":1},{"shop":"柳ケ瀬マップ","amount":1331,"count":1},{"shop":"T.O","amount":1360,"count":1},{"shop":"春夏冬","amount":2250,"count":1}],"25":[{"shop":"プレイガイド","amount":3440,"count":1},{"shop":"ラバーズ","amount":2470,"count":1},{"shop":"キューピット","amount":5380,"count":1},{"shop":"Stone","amount":1600,"count":1},{"shop":"Club スイート","amount":5760,"count":1},{"shop":"Club スイート","amount":2650,"count":1},{"shop":"アールズ","amount":4700,"count":1},{"shop":"アルジャン","amount":3981,"count":1},{"shop":"YAMADAI","amount":2236,"count":1},{"shop":"マシェリナ","amount":3100,"count":1}],"26":[{"shop":"マシェリナ","amount":1636,"count":1},{"shop":"Club Es","amount":1767,"count":1},{"shop":"アルジャン","amount":2509,"count":1},{"shop":"Stone","amount":4418,"count":1},{"shop":"Mugu","amount":3190,"count":1},{"shop":"エミール","amount":3021,"count":1},{"shop":"フォルテ","amount":4150,"count":1},{"shop":"T.O","amount":770,"count":1},{"shop":"サルビア","amount":3240,"count":1}]}},"shops":["ブルーバナナ","サルビア","マシェリナ","フィッツ","リリック","バンチオブローゼス","フォルテ","咲華","キューピット","虹","テーズバー","Bone","ゴヘル","Stone","アルジャン","レオーズバー","スター","Club S","ロゼラカフェ","ViVi","エミール","ダーム","木蓮","クラッカージャック","スイートラビット","彩華","BAR Rel","Club Es","ムギ","New CROWN","Club JIN","プルチーノ","Mrs.J","ペントハウス","ラバーズ","J&S","サラン","オーパス","ロチェス","T.O","Club スイート","松尾","トップスピード","ヴィラ","ダーコ","はないちもんめ","プレイス","ラフィーゼ","豚に真珠","柳ケ瀬マップ","春夏冬","プレイガイド","アールズ","YAMADAI","Mugu"]}};
+let db=loadDB(), currentPerson="";
+
+const tabWage=document.getElementById("tabWage");
+const tabDelivery=document.getElementById("tabDelivery");
+const wagePage=document.getElementById("wagePage");
+const deliveryPage=document.getElementById("deliveryPage");
+const personSelect=document.getElementById("personSelect");
+const addPerson=document.getElementById("addPerson");
+const renamePerson=document.getElementById("renamePerson");
+const deletePerson=document.getElementById("deletePerson");
+const rateWeek=document.getElementById("rateWeek");
+const rateFS=document.getElementById("rateFS");
+const rateNight=document.getElementById("rateNight");
+const payMode=document.getElementById("payMode");
+const fixedSalary=document.getElementById("fixedSalary");
+const fixedSalaryBox=document.getElementById("fixedSalaryBox");
+const saveRates=document.getElementById("saveRates");
+const backupButton=document.getElementById("backupData");
+const restoreButton=document.getElementById("restoreData");
+const restoreFile=document.getElementById("restoreFile");
+const wageMonth=document.getElementById("wageMonth");
+const renderWageButton=document.getElementById("renderWage");
+const printWage=document.getElementById("printWage");
+const wageDays=document.getElementById("wageDays");
+const wageMonthTotal=document.getElementById("wageMonthTotal");
+const dMonth=document.getElementById("dMonth");
+const dDay=document.getElementById("dDay");
+const addDelivery=document.getElementById("addDelivery");
+const manageShops=document.getElementById("manageShops");
+const printDelivery=document.getElementById("printDelivery");
+const deliveryRows=document.getElementById("deliveryRows");
+const deliveryDayTotal=document.getElementById("deliveryDayTotal");
+const dailyBody=document.getElementById("dailyBody");
+const monthlyCount=document.getElementById("monthlyCount");
+const monthlyAmount=document.getElementById("monthlyAmount");
+const storeBody=document.getElementById("storeBody");
+const storeCount=document.getElementById("storeCount");
+const storeAmount=document.getElementById("storeAmount");
+const shopManager=document.getElementById("shopManager");
+const newShopName=document.getElementById("newShopName");
+const saveShop=document.getElementById("saveShop");
+const shopList=document.getElementById("shopList");
+function emptyShift(){
+  return {start:"",end:"",restart:"",reend:""};
+}
+function normalizePerson(p, fallbackRates){
+  p=p||{};
+  if(!p.rates){
+    p.rates={
+      week:Number(fallbackRates?.week)||0,
+      fs:Number(fallbackRates?.fs)||0,
+      night:Number(fallbackRates?.night)||0
+    };
+  }
+  return p;
+}
+function migrateLegacy(legacy){ return convertBackupToV7({data:legacy}); }
+function legacyShiftToSegments(x){
+  if(!x)return [];
+  if(x.restart&&x.reend){
+    const a=[];
+    if(x.start&&x.restart)a.push({start:x.start,end:x.restart});
+    if(x.reend&&x.end)a.push({start:x.reend,end:x.end});
+    return a;
+  }
+  return x.start&&x.end?[{start:x.start,end:x.end}]:[];
+}
+function convertBackupToV7(src){
+  if(src&&Number(src.version)===7&&src.data&&src.data.people){
+    const cloned=JSON.parse(JSON.stringify(src.data));
+    cloned.rates=cloned.rates||{week:1065,fs:1400,night:1331};
+    cloned.delivery=cloned.delivery||{};
+    cloned.shops=Array.isArray(cloned.shops)?cloned.shops:[];
+    Object.entries(cloned.people||{}).forEach(([name,p])=>{
+      cloned.people[name]=normalizePerson(p,cloned.rates);
+    });
+    return cloned;
+  }
+  const baseRates={week:Number(src?.data?.rates?.week)||1065,fs:Number(src?.data?.rates?.fs)||1400,night:Number(src?.data?.rates?.night)||1331};
+  const result={rates:baseRates,people:{},delivery:src?.data?.delivery||{},shops:Array.isArray(src?.data?.shops)?src.data.shops:[]};
+  Object.entries(src?.data?.people||{}).forEach(([name,oldp])=>{
+    if(name==="自分")return;
+    const p=normalizePerson({},baseRates);p.payMode=oldp?.payMode==="fixedMinus"?"fixedMinus":"hourly";p.fixedSalary=Math.max(0,Number(oldp?.fixedSalary)||0);
+    if(oldp?.rates)p.rates={week:Number(oldp.rates.week)||baseRates.week,fs:Number(oldp.rates.fs)||baseRates.fs,night:Number(oldp.rates.night)||baseRates.night};
+    const dates=new Set();Object.keys(oldp||{}).forEach(k=>{const m=k.match(/^(\d{4}-\d{2}-\d{2})_(1|2)$/);if(m)dates.add(m[1]);});
+    dates.forEach(date=>{const segs=[...legacyShiftToSegments(oldp[date+"_1"]),...legacyShiftToSegments(oldp[date+"_2"])];if(segs.length)p[date]={segments:segs};});
+    result.people[name]=p;
+  });return result;
+}
+function loadDB(){
+  const empty={rates:{week:1065,fs:1400,night:1331},people:{},delivery:{},shops:[]};
+  try{const raw=localStorage.getItem(STORAGE_KEY);if(raw){const x=JSON.parse(raw);if(x&&x.people&&x.delivery&&x.shops)return x;}const imported=convertBackupToV7(EMBEDDED_BACKUP);localStorage.setItem(STORAGE_KEY,JSON.stringify(imported));return imported;}catch(e){return empty;}
+}
+function save(){localStorage.setItem(STORAGE_KEY,JSON.stringify(db))}
+function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
+function yen(n){return "¥"+Math.round(Number(n)||0).toLocaleString("ja-JP")}
+function daysInMonth(m){if(!m)return 31;const [y,mo]=m.split("-").map(Number);return new Date(y,mo,0).getDate()}
+function japanHolidays(y){
+  const h=new Set(); const add=(m,d)=>h.add(`${y}-${pad(m)}-${pad(d)}`);
+  add(1,1); add(2,11); add(2,23); add(4,29); add(5,3); add(5,4); add(5,5); add(8,11); add(11,3); add(11,23);
+  const nthMonday=(month,n)=>{const first=new Date(y,month-1,1);const day=first.getDay();return 1+((8-day)%7)+(n-1)*7};
+  add(1,nthMonday(1,2)); add(7,nthMonday(7,3)); add(9,nthMonday(9,3)); add(10,nthMonday(10,2));
+  const vernal=Math.floor(20.8431+0.242194*(y-1980)-Math.floor((y-1980)/4));
+  const autumn=Math.floor(23.2488+0.242194*(y-1980)-Math.floor((y-1980)/4));
+  add(3,vernal); add(9,autumn);
+  for(const z of [...h]){const [yy,mm,dd]=z.split("-").map(Number);const date=new Date(yy,mm-1,dd);if(date.getDay()===0){let next=dd+1;while(h.has(`${yy}-${pad(mm)}-${pad(next)}`))next++;h.add(`${yy}-${pad(mm)}-${pad(next)}`)}}
+  return h;
+}
+function isFriSat(m,d){
+  const [y,mo]=m.split("-").map(Number), w=new Date(y,mo-1,d).getDay();
+  const holiday=japanHolidays(y).has(`${y}-${pad(mo)}-${pad(d)}`);
+  return w===5||w===6||holiday;
+}
+function pad(n){return String(n).padStart(2,"0")}
+function ensurePerson(){
+  if(!currentPerson||!db.people[currentPerson]) currentPerson=Object.keys(db.people)[0]||"";
+  if(currentPerson) normalizePerson(db.people[currentPerson],db.rates);
+}
+function init(){
+  ensurePerson();
+  const now=new Date(), month=now.getFullYear()+"-"+pad(now.getMonth()+1);
+  wageMonth.value=month; dMonth.value=month;
+  loadPersonRatesIntoUI();
+  renderPeople(); renderPrintPeople(); updatePayModeUI(); renderWage(); fillDays(); renderDelivery(); renderDeliverySummary(); renderShops();
+}
+function renderPeople(){
+  personSelect.innerHTML=Object.keys(db.people).map(n=>'<option>'+esc(n)+'</option>').join("");
+  personSelect.value=currentPerson;
+}
+function renderPrintPeople(){
+  const names=Object.keys(db.people);
+  const checked=names.length===1?names[0]:currentPerson;
+  const el=document.getElementById("printPersonList");
+  if(!el)return;
+  el.innerHTML=names.map(n=>`<label><input type="checkbox" class="print-person" value="${esc(n)}" ${n===checked?"checked":""}>${esc(n)}</label>`).join("");
+}
+function selectedPrintPeople(){
+  const a=[...document.querySelectorAll(".print-person:checked")].map(x=>x.value);
+  return a.length?a:[currentPerson];
+}
+function personData(){
+  const p=db.people[currentPerson]||(db.people[currentPerson]={});
+  return normalizePerson(p,db.rates);
+}
+function getPayMode(){return personData().payMode==="fixedMinus"?"fixedMinus":"hourly"}
+function loadPersonRatesIntoUI(){
+  const p=personData();
+  rateWeek.value=Number(p.rates?.week)||0;
+  rateFS.value=Number(p.rates?.fs)||0;
+  rateNight.value=Number(p.rates?.night)||0;
+  fixedSalary.value=Number(p.fixedSalary)||0;
+}
+function updatePayModeUI(){
+  payMode.value=getPayMode();
+  fixedSalary.value=Number(personData().fixedSalary)||0;
+  fixedSalaryBox.style.display=payMode.value==="fixedMinus"?"":"none";
+}
+function emptyDay(){return {segments:[{start:"",end:""}],extraWork:{start:"",end:""}};}
+function getDay(p,d){
+  if(!p[d])p[d]=emptyDay();
+  if(!Array.isArray(p[d].segments)){
+    const x=p[d],segs=[];
+    if(x.start&&x.end){if(x.breakStart&&x.breakEnd){segs.push({start:x.start,end:x.breakStart},{start:x.breakEnd,end:x.end});}else segs.push({start:x.start,end:x.end});}
+    const extra=x.extraWork&&typeof x.extraWork==="object"?x.extraWork:{start:"",end:""};
+    p[d]={segments:segs.length?segs:[{start:"",end:""}],extraWork:extra};
+  }
+  return p[d];
+}
+function timeToMin(v){if(!v)return null;const [h,m]=v.split(":").map(Number);return h*60+m;}
+function roundClock(v,mode){const n=timeToMin(v);if(n==null)return null;return mode==="ceil"?Math.ceil(n/15)*15:Math.floor(n/15)*15;}
+function calcDayParts(x){
+  // V7確定ルール:
+  // 出勤は15分切り上げ、退勤は15分切り下げ。
+  // 深夜は22:00〜翌朝。日付をまたいだ00:00〜05:59も深夜として扱う。
+  // 1区間が22:00をまたぐ場合は22:00で通常/深夜を分割する。
+  let normal=0,night=0;
+  const segs=Array.isArray(x?.segments)?x.segments:[];
+  for(const seg of segs){
+    if(!seg?.start || !seg?.end) continue;
+    let a=roundClock(seg.start,"ceil");
+    let b=roundClock(seg.end,"floor");
+    if(a==null || b==null) continue;
+    if(b<a) b+=1440;
+    if(b<=a) continue;
+
+    // 時刻ベースで判定する。0:00〜5:59は前夜22:00から続く深夜帯。
+    let cur=a;
+    while(cur<b){
+      const day=Math.floor(cur/1440);
+      const clock=cur-day*1440;
+      let isNight = clock>=22*60 || clock<6*60;
+      let boundary;
+      if(isNight){
+        boundary = clock>=22*60 ? day*1440+1440 : day*1440+6*60;
+      }else{
+        boundary = day*1440+22*60;
+      }
+      const next=Math.min(b,boundary);
+      if(next<=cur) break;
+      if(isNight) night += next-cur; else normal += next-cur;
+      cur=next;
+    }
+  }
+  return {total:normal+night,normal,night};
+}
+function rateForDay(m,d,p){
+  return isFriSat(m,d)?Number(p.rates.fs)||0:Number(p.rates.week)||0;
+}
+
+function renderWage(){
+  const m=wageMonth.value;if(!m)return;
+  const p=personData(),n=daysInMonth(m),mode=getPayMode();
+  updatePayModeUI();let total=0,extraTotal=0,out="";
+  const dow=["日","月","火","水","木","金","土"],[yy,mm]=m.split("-").map(Number);
+  for(let d=1;d<=n;d++){
+    const dateKey=m+"-"+pad(d),x=getDay(p,dateKey),parts=calcDayParts(x),r=rateForDay(m,d,p);
+    const pay=parts.normal*r/60+parts.night*(Number(p.rates.night)||0)/60;
+    const extraParts=calcDayParts({segments:[x.extraWork||{start:"",end:""}]});
+    const extraPay=mode==="fixedMinus"?(extraParts.normal*r/60+extraParts.night*(Number(p.rates.night)||0)/60):0;
+    total+=pay;extraTotal+=extraPay;
+    const date=new Date(yy,mm-1,d);
+    const rows=x.segments.map((seg,i)=>`<div class="time-grid" style="margin-bottom:6px"><div class="time-field"><label>勤務${i+1}・出勤（1分単位）</label><input type="time" step="60" value="${esc(seg.start)}" data-d="${dateKey}" data-seg="${i}" data-k="start"></div><div class="time-field"><label>勤務${i+1}・退勤（1分単位）</label><input type="time" step="60" value="${esc(seg.end)}" data-d="${dateKey}" data-seg="${i}" data-k="end"></div><div><button type="button" class="secondary seg-delete" data-day="${dateKey}" data-seg-delete="${i}" ${x.segments.length<=1?"disabled":""}>🗑️ 削除</button></div></div>`).join("");
+    const extraBox=mode==="fixedMinus"?`<div style="margin-top:10px;padding:10px;border:1px solid #cfe8d5;border-radius:10px;background:#f6fff8"><b>＋ 追加勤務</b><div class="small">固定給にプラスする勤務。出勤・退勤だけ入力すれば自動計算♪</div><div class="time-grid" style="margin-top:8px"><div class="time-field"><label>追加勤務・出勤（1分刻みで入力）</label><input type="time" step="60" value="${esc((x.extraWork||{}).start||"")}" data-extra-d="${dateKey}" data-extra-k="start"></div><div class="time-field"><label>追加勤務・退勤（1分刻みで入力）</label><input type="time" step="60" value="${esc((x.extraWork||{}).end||"")}" data-extra-d="${dateKey}" data-extra-k="end"></div></div><div class="small" style="margin-top:6px">追加 ${minutesToHours(extraParts.total)}h → <b>${yen(extraPay)}</b>（通常 ${yen(r)}／夜間 ${yen(p.rates.night)}）</div></div>`:"";
+    out+=`<div class="daybox"><div class="daytitle"><span>${d}日（${dow[date.getDay()]}）</span><span>${yen(pay)}</span></div>${rows}<button type="button" class="add seg-add" data-day="${dateKey}">＋ 勤務区間を追加</button><div class="small" style="margin-top:8px">通常 ${minutesToHours(parts.normal)}h × ${yen(r)} ＋ 夜間 ${minutesToHours(parts.night)}h × ${yen(p.rates.night)} ＝ <b>${yen(pay)}</b><br>※入力は1分単位。計算は出勤を15分切り上げ、退勤を15分切り下げ。休憩は勤務区間を分けて入力♪</div>${extraBox}<div class="day-actions"><span class="muted">この日の入力だけ削除できます</span><button class="day-delete" data-day-delete="${dateKey}">🗑️ この日を削除</button></div></div>`;
+  }
+  wageDays.innerHTML=out;
+  const fixed=Number(p.fixedSalary)||0,finalPay=mode==="fixedMinus"?fixed-total+extraTotal:total;
+  wageMonthTotal.textContent=mode==="fixedMinus"?yen(finalPay)+"（固定給 "+yen(fixed)+" − 時間給 "+yen(total)+" ＋ 追加勤務 "+yen(extraTotal)+"）":yen(finalPay);
+  wageDays.querySelectorAll("[data-d][data-seg][data-k]").forEach(el=>{
+    const update=()=>{const d=el.dataset.d,i=Number(el.dataset.seg),k=el.dataset.k,day=getDay(personData(),d);if(!day.segments[i])day.segments[i]={start:"",end:""};day.segments[i][k]=el.value||"";save();renderWage();};
+    el.addEventListener("change",update);
+  });
+  wageDays.querySelectorAll("[data-extra-d][data-extra-k]").forEach(el=>{
+    el.addEventListener("change",()=>{const d=el.dataset.extraD,k=el.dataset.extraK,day=getDay(personData(),d);if(!day.extraWork)day.extraWork={start:"",end:""};day.extraWork[k]=el.value||"";save();renderWage();});
+  });
+  wageDays.querySelectorAll(".seg-add").forEach(btn=>btn.addEventListener("click",()=>{getDay(personData(),btn.dataset.day).segments.push({start:"",end:""});save();renderWage();}));
+  wageDays.querySelectorAll(".seg-delete").forEach(btn=>btn.addEventListener("click",()=>{const day=getDay(personData(),btn.dataset.day),i=Number(btn.dataset.segDelete);day.segments.splice(i,1);if(!day.segments.length)day.segments.push({start:"",end:""});save();renderWage();}));
+  wageDays.querySelectorAll("[data-day-delete]").forEach(btn=>btn.addEventListener("click",()=>{if(confirm(btn.dataset.dayDelete+" の入力を削除する？")){delete personData()[btn.dataset.dayDelete];save();renderWage();}}));
+}
+function timeOptions(value,allowBlank=false){
+  // V7は1分単位の <input type="time"> を使うため、旧select用関数は互換用。
+  return "";
+}
+
+function minutesToHours(min){return (min/60).toFixed(2)}
+function fillDays(){
+  const n=daysInMonth(dMonth.value), old=Number(dDay.value)||1;
+  dDay.innerHTML=Array.from({length:n},(_,i)=>`<option value="${i+1}">${i+1}日</option>`).join("");
+  dDay.value=String(Math.min(old,n));
+}
+function dayRows(){
+  const m=dMonth.value,d=String(Number(dDay.value)||1);
+  if(!db.delivery[m])db.delivery[m]={};
+  if(!db.delivery[m][d])db.delivery[m][d]=[];
+  return db.delivery[m][d];
+}
+function shopNames(){
+  return [...new Set(db.shops||[])].sort((a,b)=>a.localeCompare(b,"ja"));
+}
+function shopSelect(value,i){
+  const names=shopNames(), extra=value&&!names.includes(value)?[value]:[];
+  const opts=[...extra,...names].map(s=>`<option value="${esc(s)}" ${s===value?"selected":""}>${esc(s)}</option>`).join("");
+  return `<select class="shop" data-i="${i}"><option value="">店舗を選択</option>${opts}<option value="__new__">＋ 新しい店舗を登録</option></select>`;
+}
+function renderDelivery(){
+  const rows=dayRows();
+  deliveryRows.innerHTML=rows.map((r,i)=>`<div class="delivery-grid">
+    ${shopSelect(r.shop||"",i)}
+    <input class="money" data-i="${i}" data-k="amount" type="number" min="0" placeholder="注文金額" value="${Number(r.amount)||""}">
+    <input data-i="${i}" data-k="count" type="number" min="1" placeholder="件数" value="${Number(r.count)||1}">
+    <button class="danger" data-del="${i}">削除</button>
+  </div>`).join("") || '<div class="muted">まだ注文がありません。「＋注文を追加」から入力してね♪</div>';
+  deliveryRows.querySelectorAll(".shop").forEach(s=>s.addEventListener("change",e=>{
+    const i=Number(s.dataset.i);
+    if(s.value==="__new__"){
+      const name=prompt("新しい店舗名を入力してね♪");
+      if(name&&name.trim()){const v=name.trim(); if(!db.shops.includes(v))db.shops.push(v); rows[i].shop=v; save();}
+    }else rows[i].shop=s.value;
+    save(); renderDelivery(); renderDeliverySummary(); renderShops();
+  }));
+  deliveryRows.querySelectorAll("input").forEach(inp=>inp.addEventListener("input",()=>{
+    const i=Number(inp.dataset.i),k=inp.dataset.k; rows[i][k]=Number(inp.value)||0; save(); renderDeliverySummary();
+  }));
+  deliveryRows.querySelectorAll("[data-del]").forEach(b=>b.addEventListener("click",()=>{
+    rows.splice(Number(b.dataset.del),1); save(); renderDelivery(); renderDeliverySummary();
+  }));
+  deliveryDayTotal.textContent=yen(rows.reduce((a,r)=>a+(Number(r.amount)||0),0));
+}
+function renderDeliverySummary(){
+  const m=dMonth.value,n=daysInMonth(m),md=db.delivery[m]||{};
+  let mc=0,ma=0, stores={};
+  let daily="";
+  for(let d=1;d<=n;d++){
+    const rows=md[String(d)]||[];
+    const c=rows.reduce((a,r)=>a+(Number(r.count)||0),0);
+    const a=rows.reduce((a,r)=>a+(Number(r.amount)||0),0);
+    mc+=c;ma+=a;
+    daily+=`<tr><td>${d}日</td><td>${c}件</td><td>${yen(a)}</td></tr>`;
+    rows.forEach(r=>{
+      const s=String(r.shop||"").trim()||"未入力";
+      if(!stores[s])stores[s]={count:0,amount:0};
+      stores[s].count+=Number(r.count)||0;
+      stores[s].amount+=Number(r.amount)||0;
+    });
+  }
+  dailyBody.innerHTML=daily;
+  monthlyCount.textContent=mc+"件"; monthlyAmount.textContent=yen(ma);
+  const entries=Object.entries(stores).sort((a,b)=>b[1].amount-a[1].amount);
+  storeBody.innerHTML=entries.length?entries.map(([s,v])=>`<tr><td>${esc(s)}</td><td>${v.count}件</td><td>${yen(v.amount)}</td></tr>`).join(""):'<tr><td colspan="3">この月のデータはありません</td></tr>';
+  storeCount.textContent=mc+"件"; storeAmount.textContent=yen(ma);
+}
+function renderShops(){
+  const names=shopNames();
+  shopList.innerHTML=names.length?names.map((s,i)=>`<div class="row" style="margin:5px 0"><span style="flex:1">${esc(s)}</span><button class="danger small" data-shop-del="${i}">削除</button></div>`).join(""):"<span class='muted'>登録店舗なし</span>";
+  shopList.querySelectorAll("[data-shop-del]").forEach(b=>b.onclick=()=>{
+    const n=names[Number(b.dataset.shopDel)];
+    db.shops=(db.shops||[]).filter(s=>s!==n); save(); renderShops(); renderDelivery();
+  });
+}
+function backupData(){
+  const payload={
+    app:"wage_delivery_app",
+    version:7,
+    savedAt:new Date().toISOString(),
+    data:db
+  };
+
+  const text=JSON.stringify(payload,null,2);
+  const filename="wage_delivery_v7_backup_"+new Date().toISOString().slice(0,10)+".json";
+
+  try{
+    const blob=new Blob([text],{type:"application/json"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+
+    a.href=url;
+    a.download=filename;
+    a.style.display="none";
+
+    document.body.appendChild(a);
+    a.click();
+
+    setTimeout(()=>{
+      a.remove();
+      URL.revokeObjectURL(url);
+    },1500);
+
+  }catch(e){
+    alert("バックアップを保存できませんでした。");
+  }
+}
+function calcPersonMonth(personName,m){
+  const p=normalizePerson(db.people[personName]||{},db.rates);
+  let normalHours=0,specialHours=0,nightHours=0,normalPay=0,specialPay=0,nightPay=0,extraHours=0,extraPay=0;
+  const n=daysInMonth(m);
+  for(let d=1;d<=n;d++){
+    const x=getDay(p,m+"-"+pad(d)),parts=calcDayParts(x);
+    const r=isFriSat(m,d)?Number(p.rates.fs)||0:Number(p.rates.week)||0;
+    const nh=parts.normal/60, night=parts.night/60;
+    if(isFriSat(m,d)){specialHours+=nh;specialPay+=nh*r}else{normalHours+=nh;normalPay+=nh*r}
+    nightHours+=night;nightPay+=night*(Number(p.rates.night)||0);
+    if(p.payMode==="fixedMinus"){
+      const ep=calcDayParts({segments:[x.extraWork||{start:"",end:""}]});
+      extraHours+=ep.total/60;
+      extraPay+=ep.normal*r/60+ep.night*(Number(p.rates.night)||0)/60;
+    }
+  }
+  const totalHours=normalHours+specialHours+nightHours;
+  const hourlyPay=normalPay+specialPay+nightPay;
+  const fixed=Number(p.fixedSalary)||0;
+  const totalPay=p.payMode==="fixedMinus"?fixed-hourlyPay+extraPay:hourlyPay;
+  return {p,normalHours,specialHours,nightHours,normalPay,specialPay,nightPay,totalHours,hourlyPay,fixed,extraHours,extraPay,totalPay};
+}
+function printPersonBlock(name,m){
+  const v=calcPersonMonth(name,m);
+  const {p,normalHours,specialHours,nightHours,normalPay,specialPay,nightPay,totalHours,hourlyPay,fixed,extraHours,extraPay,totalPay}=v;
+  const fixedRows=p.payMode==="fixedMinus"?`
+    <tr><td colspan="3">固定給</td><td>${yen(fixed)}</td></tr>
+    <tr><td colspan="3">時間給控除</td><td>-¥${Math.round(hourlyPay).toLocaleString("ja-JP")}</td></tr>
+    <tr><td colspan="3">追加勤務（＋）</td><td>+¥${Math.round(extraPay).toLocaleString("ja-JP")}<br><span style="font-size:11px;">${extraHours.toFixed(2)}h</span></td></tr>`:"";
+  const totalLabel=p.payMode==="fixedMinus"?"差引合計":"総合計";
+  return `<div class="print-person-card">
+    <div style="font-size:18px;font-weight:700;text-align:center;margin-bottom:8px;">${esc(name)}　${m}</div>
+    <table style="border-collapse:collapse;width:100%;">
+      <tr><th style="border:1px solid #999;padding:7px;">時給</th><th style="border:1px solid #999;padding:7px;">時間</th><th style="border:1px solid #999;padding:7px;">合計</th></tr>
+      <tr><td style="border:1px solid #999;padding:7px;text-align:right;">${yen(p.rates.week)}</td><td style="border:1px solid #999;padding:7px;text-align:right;">${normalHours.toFixed(2)}h</td><td style="border:1px solid #999;padding:7px;text-align:right;">${yen(normalPay)}</td></tr>
+      <tr><td style="border:1px solid #999;padding:7px;text-align:right;">${yen(p.rates.fs)}</td><td style="border:1px solid #999;padding:7px;text-align:right;">${specialHours.toFixed(2)}h</td><td style="border:1px solid #999;padding:7px;text-align:right;">${yen(specialPay)}</td></tr>
+      <tr><td style="border:1px solid #999;padding:7px;text-align:right;">${yen(p.rates.night)}</td><td style="border:1px solid #999;padding:7px;text-align:right;">${nightHours.toFixed(2)}h</td><td style="border:1px solid #999;padding:7px;text-align:right;">${yen(nightPay)}</td></tr>
+      ${fixedRows}
+      <tr><th style="border:1px solid #999;padding:8px;">トータル時間</th><th style="border:1px solid #999;padding:8px;text-align:right;">${totalHours.toFixed(2)}h</th><th style="border:1px solid #999;padding:8px;text-align:right;font-size:16px;">${totalLabel} ${yen(totalPay)}</th></tr>
+    </table>
+  </div>`;
+}
+function printWageView(){
+  const m=wageMonth.value;
+  const names=selectedPrintPeople();
+  let blocks="";
+  names.forEach((name,i)=>{
+    if(i>0 && i%3===0) blocks+=`<div style="page-break-before:always"></div>`;
+    else if(i>0) blocks+=`<div class="cut-line"></div>`;
+    blocks+=printPersonBlock(name,m);
+  });
+  printArea.innerHTML=`<div style="font-family:sans-serif;">${blocks}</div>`;
+  window.print();
+}
+function printDeliveryView(){
+  const m=dMonth.value,md=db.delivery[m]||{},n=daysInMonth(m);
+  let daily="",stores={},mc=0,ma=0;
+  const week=["日","月","火","水","木","金","土"];
+  const [yy,mm]=m.split("-").map(Number);
+  for(let d=1;d<=n;d++){
+    const rows=md[String(d)]||[];let a=0,c=0;
+    rows.forEach(r=>{
+      a+=Number(r.amount)||0;c+=Number(r.count)||0;
+      const shop=String(r.shop||"").trim()||"未入力";
+      if(!stores[shop])stores[shop]={count:0,amount:0};
+      stores[shop].count+=Number(r.count)||0;
+      stores[shop].amount+=Number(r.amount)||0;
+    });
+    mc+=c;ma+=a;
+    const wd=week[new Date(yy,mm-1,d).getDay()];
+    daily+=`<tr class="${d===n?'delivery-final':''}"><td>${d}日</td><td>${wd}</td><td>${c}件</td><td>${yen(a)}</td></tr>`;
+  }
+  const sortedStores=Object.entries(stores).sort((a,b)=>b[1].amount-a[1].amount);
+  const mid=Math.ceil(sortedStores.length/2);
+  const makeStoreTable=(arr)=>`<table><tr><th>店舗・注文先</th><th>件数</th><th>合計</th></tr>${arr.length?arr.map(([s,v])=>`<tr><td>${esc(s)}</td><td>${v.count}件</td><td>${yen(v.amount)}</td></tr>`).join(""):'<tr><td colspan="3">データなし</td></tr>'}</table>`;
+  const stLeft=sortedStores.slice(0,mid),stRight=sortedStores.slice(mid);
+  printArea.innerHTML=`
+    <div class="delivery-print-page1">
+      <h2>${m} 出前集計</h2>
+      <h3>日別合計</h3>
+      <table>
+        <tr><th>日</th><th>曜日</th><th>件数</th><th>売上</th></tr>
+        ${daily}
+        <tr class="delivery-month-total"><th colspan="2">月間総合計</th><th>${mc}件</th><th>${yen(ma)}</th></tr>
+      </table>
+    </div>
+    <div class="delivery-print-store">
+      <h3>店舗別月間合計</h3>
+      <div class="delivery-store-columns">
+        <div class="delivery-store-col">${makeStoreTable(stLeft)}</div>
+        <div class="delivery-store-col">${makeStoreTable(stRight)}</div>
+      </div>
+    </div>`;
+  window.print();
+}
+tabWage.addEventListener("click",()=>{
+  wagePage.style.display="";
+  deliveryPage.style.display="none";
+  tabWage.classList.add("active");
+  tabDelivery.classList.remove("active");
+});
+tabDelivery.addEventListener("click",()=>{
+  wagePage.style.display="none";
+  deliveryPage.style.display="";
+  tabWage.classList.remove("active");
+  tabDelivery.classList.add("active");
+  renderDeliverySummary();
+});
+personSelect.onchange=()=>{
+  currentPerson=personSelect.value;
+  loadPersonRatesIntoUI();
+  updatePayModeUI();
+  renderWage();
+  renderPrintPeople();
+};
+addPerson.onclick=()=>{
+  const n=prompt("名前を入力してね");
+  if(n&&n.trim()&&!db.people[n.trim()]){
+    db.people[n.trim()]=normalizePerson({},db.rates);
+    currentPerson=n.trim(); save(); renderPeople(); loadPersonRatesIntoUI(); renderWage(); renderPrintPeople();
+  }
+};
+renamePerson.onclick=()=>{
+  const n=prompt("新しい名前",currentPerson);
+  if(n&&n.trim()&&n.trim()!==currentPerson&&!db.people[n.trim()]){
+    db.people[n.trim()]=db.people[currentPerson]; delete db.people[currentPerson]; currentPerson=n.trim();
+    save(); renderPeople(); renderWage(); renderPrintPeople();
+  }
+};
+deletePerson.onclick=()=>{
+  if(!currentPerson)return;
+  if(confirm(currentPerson+"を削除する？")){
+    delete db.people[currentPerson];
+    currentPerson=Object.keys(db.people)[0]||"";
+    save(); renderPeople(); loadPersonRatesIntoUI(); renderWage(); renderPrintPeople();
+  }
+};
+saveRates.onclick=()=>{
+  const p=personData();
+  p.payMode=payMode.value;
+  p.fixedSalary=Math.max(0,Number(fixedSalary.value)||0);
+  p.rates={
+    week:Math.max(0,Number(rateWeek.value)||0),
+    fs:Math.max(0,Number(rateFS.value)||0),
+    night:Math.max(0,Number(rateNight.value)||0)
+  };
+  save(); updatePayModeUI(); renderWage(); renderPrintPeople();
+  alert("この人の時給を保存したよ♪");
+};
+payMode.onchange=()=>{
+  fixedSalaryBox.style.display=payMode.value==="fixedMinus"?"":"none";
+};
+renderWageButton.onclick=renderWage;
+wageMonth.onchange=renderWage;
+dMonth.onchange=()=>{fillDays();renderDelivery();renderDeliverySummary()};
+dDay.onchange=renderDelivery;
+addDelivery.onclick=()=>{dayRows().push({shop:"",amount:0,count:1});save();renderDelivery()};
+manageShops.addEventListener("click",()=>{
+  const hidden=getComputedStyle(shopManager).display==="none";
+  if(hidden){
+    shopManager.style.display="";
+    renderShops();
+    setTimeout(()=>shopManager.scrollIntoView({behavior:"smooth",block:"start"}),30);
+  }else{
+    shopManager.style.display="none";
+  }
+});
+saveShop.onclick=()=>{const n=newShopName.value.trim();if(n&&!db.shops.includes(n)){db.shops.push(n);newShopName.value="";save();renderShops();renderDelivery()}};
+printWage.onclick=printWageView; printDelivery.onclick=printDeliveryView;
+backupButton.onclick=backupData;
+restoreButton.onclick=()=>restoreFile.click();
+
+function restoreData(file){
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=()=>{
+    try{
+      const payload=JSON.parse(reader.result);
+      if(!payload || payload.app!=="wage_delivery_app" || !payload.data) throw new Error();
+      const data=payload.data;
+      if(!data.people || !data.delivery || !data.shops || !data.rates) throw new Error();
+      db=data;
+      ensurePerson();
+      save();
+      rateWeek.value=db.rates.week;
+      rateFS.value=db.rates.fs;
+      rateNight.value=db.rates.night;
+      renderPeople();
+      updatePayModeUI();
+      renderWage();
+      fillDays();
+      renderDelivery();
+      renderDeliverySummary();
+      renderShops();
+      alert("バックアップを復元したよ♪");
+    }catch(e){
+      alert("バックアップファイルを読み込めませんでした。");
+    }
+  };
+  reader.readAsText(file,"utf-8");
+}
+restoreFile.onchange=()=>{
+  const f=restoreFile.files&&restoreFile.files[0];
+  restoreData(f);
+  restoreFile.value="";
+};
+init();
+</script>
+
+<script>
+(function(){
+  let deferredPrompt=null;
+  const box=document.getElementById("pwaInstall");
+  const btn=document.getElementById("installBtn");
+  const help=document.getElementById("installHelp");
+  const hb=document.getElementById("helpBtn");
+  window.addEventListener("beforeinstallprompt",e=>{
+    e.preventDefault(); deferredPrompt=e; box.style.display="block";
+  });
+  btn.addEventListener("click",async()=>{
+    if(!deferredPrompt){help.style.display=help.style.display==="none"?"block":"none";return;}
+    deferredPrompt.prompt();
+    try{await deferredPrompt.userChoice;}catch(e){}
+    deferredPrompt=null;
+    box.style.display="none";
+  });
+  hb.addEventListener("click",()=>{help.style.display=help.style.display==="none"?"block":"none"});
+  window.addEventListener("appinstalled",()=>{box.style.display="none"});
+  if("serviceWorker" in navigator && location.protocol!=="file:"){
+    navigator.serviceWorker.register("sw.js").catch(()=>{});
+  }
+})();
+</script>
+</body></html>
