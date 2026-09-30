@@ -516,27 +516,59 @@ function shopSelect(value,i){
 }
 function renderDelivery(){
   const rows=dayRows();
+
   deliveryRows.innerHTML=rows.map((r,i)=>`<div class="delivery-grid">
     ${shopSelect(r.shop||"",i)}
     <input class="money" data-i="${i}" data-k="amount" type="number" min="0" placeholder="注文金額" value="${Number(r.amount)||""}">
     <input data-i="${i}" data-k="count" type="number" min="1" placeholder="件数" value="${Number(r.count)||1}">
     <button class="danger" data-del="${i}">削除</button>
   </div>`).join("") || '<div class="muted">まだ注文がありません。「＋注文を追加」から入力してね♪</div>';
+
   deliveryRows.querySelectorAll(".shop").forEach(s=>s.addEventListener("change",e=>{
     const i=Number(s.dataset.i);
+
     if(s.value==="__new__"){
       const name=prompt("新しい店舗名を入力してね♪");
-      if(name&&name.trim()){const v=name.trim(); if(!db.shops.includes(v))db.shops.push(v); rows[i].shop=v; save();}
-    }else rows[i].shop=s.value;
-    save(); renderDelivery(); renderDeliverySummary(); renderShops();
+      if(name&&name.trim()){
+        const v=name.trim();
+        if(!db.shops.includes(v))db.shops.push(v);
+        rows[i].shop=v;
+        save();
+        renderDelivery();
+        renderDeliverySummary();
+        renderShops();
+      }
+    }else{
+      rows[i].shop=s.value;
+      save();
+      renderDelivery();
+      renderDeliverySummary();
+      renderShops();
+    }
   }));
+
   deliveryRows.querySelectorAll("input").forEach(inp=>inp.addEventListener("input",()=>{
-    const i=Number(inp.dataset.i),k=inp.dataset.k; rows[i][k]=Number(inp.value)||0; save(); renderDeliverySummary();
+    const i=Number(inp.dataset.i),k=inp.dataset.k;
+    rows[i][k]=Number(inp.value)||0;
+    save();
+
+    deliveryDayTotal.textContent=yen(
+      rows.reduce((a,r)=>a+(Number(r.amount)||0),0)
+    );
+
+    renderDeliverySummary();
   }));
+
   deliveryRows.querySelectorAll("[data-del]").forEach(b=>b.addEventListener("click",()=>{
-    rows.splice(Number(b.dataset.del),1); save(); renderDelivery(); renderDeliverySummary();
+    rows.splice(Number(b.dataset.del),1);
+    save();
+    renderDelivery();
+    renderDeliverySummary();
   }));
-  deliveryDayTotal.textContent=yen(rows.reduce((a,r)=>a+(Number(r.amount)||0),0));
+
+  deliveryDayTotal.textContent=yen(
+    rows.reduce((a,r)=>a+(Number(r.amount)||0),0)
+  );
 }
 function renderDeliverySummary(){
   const m=dMonth.value,n=daysInMonth(m),md=db.delivery[m]||{};
