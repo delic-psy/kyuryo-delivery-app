@@ -610,11 +610,14 @@ function backupData(){
 }
 function calcPersonMonth(personName,m){
   const p=normalizePerson(db.people[personName]||{},db.rates);
-  let normalHours=0,specialHours=0,nightHours=0,normalPay=0,specialPay=0,nightPay=0,extraHours=0,extraPay=0,transportTotal=0;
+  let normalHours=0,specialHours=0,nightHours=0,normalPay=0,specialPay=0,nightPay=0,extraHours=0,extraPay=0,transportTotal=0,transportOneWayCount=0,transportRoundTripCount=0;
   const n=daysInMonth(m);
   for(let d=1;d<=n;d++){
     const x=getDay(p,m+"-"+pad(d)),parts=calcDayParts(x);
-    transportTotal+=Number(x.transport)||0;
+    const transportAmount=Number(x.transport)||0;
+    transportTotal+=transportAmount;
+    if(transportAmount===500) transportOneWayCount++;
+    if(transportAmount===1000) transportRoundTripCount++;
     const r=isFriSat(m,d)?Number(p.rates.fs)||0:Number(p.rates.week)||0;
     const nh=parts.normal/60, night=parts.night/60;
     if(isFriSat(m,d)){specialHours+=nh;specialPay+=nh*r}else{normalHours+=nh;normalPay+=nh*r}
@@ -630,16 +633,16 @@ function calcPersonMonth(personName,m){
   const fixed=Number(p.fixedSalary)||0;
   const basePay=p.payMode==="fixedMinus"?fixed-hourlyPay+extraPay:hourlyPay;
   const totalPay=basePay+transportTotal;
-  return {p,normalHours,specialHours,nightHours,normalPay,specialPay,nightPay,totalHours,hourlyPay,fixed,extraHours,extraPay,transportTotal,totalPay};
+  return {p,normalHours,specialHours,nightHours,normalPay,specialPay,nightPay,totalHours,hourlyPay,fixed,extraHours,extraPay,transportTotal,transportOneWayCount,transportRoundTripCount,totalPay};
 }
 function printPersonBlock(name,m){
   const v=calcPersonMonth(name,m);
-  const {p,normalHours,specialHours,nightHours,normalPay,specialPay,nightPay,totalHours,hourlyPay,fixed,extraHours,extraPay,transportTotal,totalPay}=v;
+  const {p,normalHours,specialHours,nightHours,normalPay,specialPay,nightPay,totalHours,hourlyPay,fixed,extraHours,extraPay,transportTotal,transportOneWayCount,transportRoundTripCount,totalPay}=v;
   const fixedRows=p.payMode==="fixedMinus"?`
     <tr><td colspan="3">固定給</td><td>${yen(fixed)}</td></tr>
     <tr><td colspan="3">時間給控除</td><td>-¥${Math.round(hourlyPay).toLocaleString("ja-JP")}</td></tr>
     <tr><td colspan="3">追加勤務（＋）</td><td>+¥${Math.round(extraPay).toLocaleString("ja-JP")}<br><span style="font-size:11px;">${extraHours.toFixed(2)}h</span></td></tr>`:"";
-  const transportRow=(p.transportEligible||transportTotal>0)?`<tr><td colspan="3">交通費</td><td>${yen(transportTotal)}</td></tr>`:"";
+  const transportRow=(p.transportEligible||transportTotal>0)?`<tr><td colspan="3">交通費（片道 ${transportOneWayCount}回 × ¥500 ／ 往復 ${transportRoundTripCount}回 × ¥1,000）</td><td>${yen(transportTotal)}</td></tr>`:"";
   const totalLabel=p.payMode==="fixedMinus"?"差引合計":"総合計";
   return `<div class="print-person-card">
     <div style="font-size:18px;font-weight:700;text-align:center;margin-bottom:8px;">${esc(name)}　${m}</div>
